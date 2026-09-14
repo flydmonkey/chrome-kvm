@@ -86,6 +86,9 @@ function renderUsb() {
 
     document.querySelector("#relativeSpeed").value =
         SettingsStore.normalizeRelativeSpeed(settings.relativeSpeed);
+    // 绝对模式发的是坐标，没有倍数一说，这一项摆在那儿只会让人以为它有用
+    syncRelativeSpeedVisibility();
+    document.querySelector("#choice5").addEventListener("change", syncRelativeSpeedVisibility);
 
     // 记住上次写进芯片的工作模式。不还原的话下拉框每次都回到模式 0，
     // 看起来就像刚才那次写入没生效
@@ -97,6 +100,13 @@ function renderUsb() {
             option.setAttribute("selected", "selected");
         }
     }
+}
+
+// 灵敏度只对相对模式有意义，选绝对模式时整块收起来。注意只是藏起来，输入框
+// 里的值还在，save() 照常存，切回相对模式不会丢。
+function syncRelativeSpeedVisibility() {
+    let relative = document.querySelector("#choice5").value === "relative";
+    document.querySelector("#relativeSpeedField").style.display = relative ? "" : "none";
 }
 
 // 下拉框里当前选中的端口优先：用户可能刚选好还没点保存
