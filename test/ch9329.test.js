@@ -800,6 +800,110 @@ test("超过 ±127 的移动拆成多包连发", async function (t) {
     });
 });
 
+test("相对模式灵敏度倍数", async function (t) {
+    function relativeChip() {
+        const chip = createFakeChip();
+        return {chip: chip, ch: new Ch9329(chip.writer, false, chip.reader)};
+    }
+    function movedBy(chip) {
+        let x = 0;
+        let y = 0;
+        framesOf(chip, 0x05).forEach(function (f) {
+            x += (f[7] << 24) >> 24;
+            y += (f[8] << 24) >> 24;
+        });
+        return {x: x, y: y};
+    }
+    async function withSpeed(speed, body) {
+        const saved = Ch9329.RELATIVE_SPEED;
+        try {
+            Ch9329.RELATIVE_SPEED = speed;
+            await body();
+        } finally {
+            Ch9329.RELATIVE_SPEED = saved;
+        }
+    }
+
+    await t.test("默认是 1，不改变任何行为", function () {
+        assert.strictEqual(Ch9329.RELATIVE_SPEED, 1);
+    });
+
+    await t.test("整数倍直接放大位移", async function () {
+        await withSpeed(2, async function () {
+            const {chip, ch} = relativeChip();
+            ch.mouseMoveBy(50, -30);
+            await drain(ch);
+            assert.deepStrictEqual(movedBy(chip), {x: 100, y: -60});
+        });
+    });
+
+    await t.test("放大后超过 127 会拆包，不会又被截断", async function () {
+        await withSpeed(3, async function () {
+            const {chip, ch} = relativeChip();
+            ch.mouseMoveBy(100, 0);
+            await drain(ch);
+            assert.strictEqual(framesOf(chip, 0x05).length, 3, "300 要拆成 3 包");
+            assert.deepStrictEqual(movedBy(chip), {x: 300, y: 0}, "放大的量要全部送到");
+        });
+    });
+
+    await t.test("小数零头跨帧攒起来，慢速移动不发涩", async function () {
+        await withSpeed(1.5, async function () {
+            const {chip, ch} = relativeChip();
+            // 每次 1，乘 1.5 得 1.5。逐帧取整会永远只发 1，累计丢掉三分之一
+            for (let i = 0; i < 10; i++) {
+                ch.mouseMoveBy(1, 0);
+                await drain(ch);
+            }
+            assert.strictEqual(movedBy(chip).x, 15, "10 次 ×1.5 应该正好是 15");
+        });
+    });
+
+    await t.test("负方向的零头同样不丢", async function () {
+        await withSpeed(1.5, async function () {
+            const {chip, ch} = relativeChip();
+            for (let i = 0; i < 10; i++) {
+                ch.mouseMoveBy(-1, 0);
+                await drain(ch);
+            }
+            assert.strictEqual(movedBy(chip).x, -15);
+        });
+    });
+
+    await t.test("缩小也能工作，不会把小位移全吃掉", async function () {
+        await withSpeed(0.5, async function () {
+            const {chip, ch} = relativeChip();
+            for (let i = 0; i < 10; i++) {
+                ch.mouseMoveBy(1, 0);
+                await drain(ch);
+            }
+            assert.strictEqual(movedBy(chip).x, 5, "10 次 ×0.5 应该是 5，而不是 0");
+        });
+    });
+
+    await t.test("解锁指针会清掉小数余量", async function () {
+        await withSpeed(1.5, async function () {
+            const {chip, ch} = relativeChip();
+            ch.mouseMoveBy(1, 0);
+            await drain(ch);
+            assert.strictEqual(movedBy(chip).x, 1, "1.5 先发 1，欠 0.5");
+            ch.resetRelativeOrigin();
+            ch.mouseMoveBy(1, 0);
+            await drain(ch);
+            assert.strictEqual(movedBy(chip).x, 2, "重新取基准后不该把上一段的 0.5 补进来");
+        });
+    });
+
+    await t.test("绝对模式不受倍数影响", async function () {
+        await withSpeed(5, async function () {
+            const {chip, ch} = newChip();
+            ch.mouseMoveBy(100, 100);
+            await drain(ch);
+            assert.strictEqual(framesOf(chip, 0x05).length, 0);
+        });
+    });
+});
+
 test("移动包统计", async function (t) {
     // mouseMoveBy 在绝对模式下直接 return，用 newChip() 测截断会假通过
     function relativeChip() {

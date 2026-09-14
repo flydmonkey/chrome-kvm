@@ -24,6 +24,9 @@ function Ch9329(writer, mouseAbsolute, reader) {
     // 相对模式下没送完的位移。攒在这里下一帧补发，保证总位移不丢
     this._relCarryX = 0;
     this._relCarryY = 0;
+    // 乘上灵敏度倍数后取整剩下的小数，同样跨帧攒，否则慢速移动会一直丢零头
+    this._relFracX = 0;
+    this._relFracY = 0;
     this._readLoopStarted = false;
     this._ackSupported = true;
     this._ackMisses = 0;
@@ -423,7 +426,9 @@ function Ch9329(writer, mouseAbsolute, reader) {
             "单包最慢(ms)": s.maxWaitMs,
             "拆包连发次数": s.split,
             "余量推迟次数": s.carried,
-            "单轴最大请求位移": s.maxWanted
+            // 记的是乘过倍数之后的量，也就是真正要发出去的位移
+            "单轴最大请求位移": s.maxWanted,
+            "相对灵敏度": Ch9329.RELATIVE_SPEED
         };
     }
 
@@ -834,13 +839,13 @@ function Ch9329(writer, mouseAbsolute, reader) {
                 this._lastClientY = clientY;
                 return;
             }
-            let wantX = Math.round(clientX - this._lastClientX);
-            let wantY = Math.round(clientY - this._lastClientY);
+            let rawX = clientX - this._lastClientX;
+            let rawY = clientY - this._lastClientY;
             this._lastClientX = clientX;
             this._lastClientY = clientY;
             this.lastAbsX = point.x;
             this.lastAbsY = point.y;
-            this._emitRelativeMove(wantX, wantY);
+            this._emitRelativeMove(rawX, rawY);
             return;
         }
 
@@ -874,7 +879,8 @@ function Ch9329(writer, mouseAbsolute, reader) {
         if (mouseAbsolute) {
             return;
         }
-        return this._emitRelativeMove(Math.round(dx), Math.round(dy));
+        // 不在这里取整：乘上倍数之后再取，零头交给 _relFrac 跨帧攒
+        return this._emitRelativeMove(dx, dy);
     }
 
     // 协议限定单包 ±127，而实测一次快甩能请求到一千多个单位，直接截断会丢掉
@@ -884,8 +890,21 @@ function Ch9329(writer, mouseAbsolute, reader) {
     //
     // 连发有上限：异常的大跳不该把串口占住。超过上限的余量留给下一帧，总位移
     // 仍然一点不少。
-    this._emitRelativeMove = function (wantX, wantY) {
-        // 上一帧没送完的先补上
+    this._emitRelativeMove = function (rawX, rawY) {
+        // 指针锁定时拿到的是未经本机加速的原始鼠标计数（本机再加速一次会和
+        // 被控端的加速叠加，手感不可控），代价是比习惯的桌面手感慢一截。
+        // RELATIVE_SPEED 用来补回来。
+        //
+        // 倍数会产生小数，每帧各自取整会持续丢零头——乘 1.5 时位移 1 变 1.5，
+        // 取整成 1 就少了三分之一，慢速移动会明显发涩。所以小数余量跨帧攒着。
+        let scaledX = rawX * Ch9329.RELATIVE_SPEED + this._relFracX;
+        let scaledY = rawY * Ch9329.RELATIVE_SPEED + this._relFracY;
+        let wantX = Math.trunc(scaledX);
+        let wantY = Math.trunc(scaledY);
+        this._relFracX = scaledX - wantX;
+        this._relFracY = scaledY - wantY;
+
+        // 上一帧连发上限没兜住的整数余量
         wantX += this._relCarryX;
         wantY += this._relCarryY;
         this._relCarryX = 0;
@@ -942,6 +961,8 @@ function Ch9329(writer, mouseAbsolute, reader) {
         // 攒着的余量属于上一段操作，解锁后再补发就是一段莫名其妙的位移
         this._relCarryX = 0;
         this._relCarryY = 0;
+        this._relFracX = 0;
+        this._relFracY = 0;
     }
 
     this.mouseButtonDown = function (videoEl, clientX, clientY, buttons) {
@@ -1028,6 +1049,14 @@ Ch9329.PACKET_GAP_MS = 4;
 // 原版 CH9329（无 F 后缀）只支持到 115200，给它写更高的值会连不上。
 //
 // 数组顺序就是探测顺序，常用的排前面；上次连上的那个会被 baudRateOrder 提到最前。
+// 相对模式的位移倍数。指针锁定拿到的是未经本机加速的原始鼠标计数，原样下发
+// 会比习惯的桌面手感慢（桌面上操作系统的加速会在快速移动时额外放大位移，这里
+// 有意关掉了，否则会和被控端的加速叠加）。调它来补回来。
+//
+// 想试手感直接在控制台改，例如 Ch9329.RELATIVE_SPEED = 1.8，即时生效。
+// 只在相对模式下起作用；绝对模式发的是坐标，没有「倍数」这回事。
+Ch9329.RELATIVE_SPEED = 1;
+
 // 一次移动最多拆成这么多包。127×16=2032，实测快甩的峰值在 1000 出头，留了
 // 一倍富余；再多就封顶，免得某次异常的大跳把串口占住。超出的留给下一帧
 Ch9329.MAX_MOVE_BURST = 16;
