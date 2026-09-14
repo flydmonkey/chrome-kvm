@@ -162,6 +162,20 @@ var SettingsStore = (function () {
         return hits.length ? hits[0] : null;
     }
 
+    // 相对模式灵敏度会直接乘进鼠标位移，脏值（0、负数、NaN、离谱的大数）会让
+    // 鼠标不动、反向或者一下飞出屏幕。localStorage 是用户能手改的，所以读出来
+    // 就夹好，别让坏数据有机会传到发包那一层
+    var RELATIVE_SPEED_MIN = 0.1;
+    var RELATIVE_SPEED_MAX = 10;
+
+    function normalizeRelativeSpeed(value) {
+        var n = typeof value === "number" ? value : parseFloat(value);
+        if (!isFinite(n) || n <= 0) {
+            return 1;
+        }
+        return Math.min(Math.max(n, RELATIVE_SPEED_MIN), RELATIVE_SPEED_MAX);
+    }
+
     // 上次用过的波特率排最前，这样正常情况下第一次就能连上
     function baudRateOrder(saved, available) {
         var list = (available || []).slice();
@@ -187,7 +201,10 @@ var SettingsStore = (function () {
         matchPorts: matchPorts,
         pickSerialPort: pickSerialPort,
         pickSerialPorts: pickSerialPorts,
-        baudRateOrder: baudRateOrder
+        baudRateOrder: baudRateOrder,
+        normalizeRelativeSpeed: normalizeRelativeSpeed,
+        RELATIVE_SPEED_MIN: RELATIVE_SPEED_MIN,
+        RELATIVE_SPEED_MAX: RELATIVE_SPEED_MAX
     };
 })();
 

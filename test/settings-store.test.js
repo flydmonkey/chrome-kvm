@@ -258,6 +258,42 @@ test("同一 VID/PID 有多个端口时要全部给出", async (t) => {
     });
 });
 
+test("相对模式灵敏度", async (t) => {
+    // 这个值会直接乘进鼠标位移，坏值不是显示问题而是鼠标彻底不能用
+    await t.test("没存过就是 1", () => {
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed(undefined), 1);
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed(null), 1);
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed(""), 1);
+    });
+
+    await t.test("正常值原样通过", () => {
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed(1.8), 1.8);
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed("1.8"), 1.8);
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed(0.5), 0.5);
+    });
+
+    await t.test("0 和负数会让鼠标不动或反向，退回 1", () => {
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed(0), 1);
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed(-2), 1);
+    });
+
+    await t.test("NaN 和乱填的文字退回 1", () => {
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed(NaN), 1);
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed("快一点"), 1);
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed(Infinity), 1);
+    });
+
+    await t.test("离谱的大数夹到上限，不能一下飞出屏幕", () => {
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed(9999),
+            SettingsStore.RELATIVE_SPEED_MAX);
+    });
+
+    await t.test("过小的值夹到下限，不能小到完全不动", () => {
+        assert.strictEqual(SettingsStore.normalizeRelativeSpeed(0.0001),
+            SettingsStore.RELATIVE_SPEED_MIN);
+    });
+});
+
 test("波特率排序", async (t) => {
     await t.test("上次用过的排最前", () => {
         assert.deepStrictEqual(SettingsStore.baudRateOrder(115200, [9600, 115200]), [115200, 9600]);

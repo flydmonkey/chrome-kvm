@@ -27,6 +27,9 @@ function start(devices) {
         }
     }
 
+    // 相对模式的位移倍数。绝对模式用不到，设了也不起作用
+    Ch9329.RELATIVE_SPEED = SettingsStore.normalizeRelativeSpeed(settings.relativeSpeed);
+
     let screen = settings.resolution;
     let width = globalWidth;
     let height = globalHeight;

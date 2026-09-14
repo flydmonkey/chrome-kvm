@@ -84,6 +84,9 @@ function renderUsb() {
 
     fillBaudOptions(settings.baudRate || 9600);
 
+    document.querySelector("#relativeSpeed").value =
+        SettingsStore.normalizeRelativeSpeed(settings.relativeSpeed);
+
     // 记住上次写进芯片的工作模式。不还原的话下拉框每次都回到模式 0，
     // 看起来就像刚才那次写入没生效
     let modeSelector = document.querySelector("#choice7");
@@ -293,6 +296,9 @@ function save() {
         mouseClickMode: "absolute",
         mouseModeVersion: 1,
         baudRate: parseInt(document.querySelector("#choice6").value) || 9600,
+        // 输入框能填任何东西，夹一下再存；坏值会让鼠标直接不可用
+        relativeSpeed: SettingsStore.normalizeRelativeSpeed(
+            document.querySelector("#relativeSpeed").value),
         // 工作模式是芯片里的状态，只有「写入工作模式」才会真正改它。这里带上
         // 已存的值，否则整体覆盖式的 write() 会把它抹掉，下拉框就回到模式 0 了
         workingMode: SettingsStore.readOrEmpty().workingMode
