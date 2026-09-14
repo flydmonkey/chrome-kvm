@@ -16,6 +16,8 @@ function Ch9329(writer, mouseAbsolute, reader) {
         sent: 0,         // 真正发到线上的包数
         clamped: 0,      // 其中被 ±127 截断的包数
         lostUnits: 0,    // 截断丢掉的位移总量
+        maxWanted: 0,    // 单轴请求过的最大位移。只看截断次数不够：峰值离 127
+                         // 越远，余量累加的收益越大
         totalWaitMs: 0,  // 发包并等应答的累计耗时
         maxWaitMs: 0,
         since: Date.now()
@@ -384,6 +386,10 @@ function Ch9329(writer, mouseAbsolute, reader) {
 
     // 截断掉的位移要记下来：它决定了「余量累加」那个改法值不值得做
     this._countClamp = function (wantX, wantY, gotX, gotY) {
+        let peak = Math.max(Math.abs(wantX), Math.abs(wantY));
+        if (peak > this.moveStats.maxWanted) {
+            this.moveStats.maxWanted = peak;
+        }
         if (wantX === gotX && wantY === gotY) {
             return;
         }
@@ -396,6 +402,7 @@ function Ch9329(writer, mouseAbsolute, reader) {
         this.moveStats.sent = 0;
         this.moveStats.clamped = 0;
         this.moveStats.lostUnits = 0;
+        this.moveStats.maxWanted = 0;
         this.moveStats.totalWaitMs = 0;
         this.moveStats.maxWaitMs = 0;
         this.moveStats.since = Date.now();
@@ -419,7 +426,11 @@ function Ch9329(writer, mouseAbsolute, reader) {
             "单包平均耗时(ms)": s.sent ? round(s.totalWaitMs / s.sent, 2) : 0,
             "单包最慢(ms)": s.maxWaitMs,
             "被±127截断的包": s.clamped,
-            "截断丢掉的位移": s.lostUnits
+            "截断丢掉的位移": s.lostUnits,
+            "单轴最大请求位移": s.maxWanted,
+            // 分母用 submitted 而不是 sent：截断发生在提交那一刻，被合并掉的
+            // 包同样经历过截断。用 sent 当分母会算出超过 100% 的怪数字
+            "截断占比": s.submitted ? round(s.clamped / s.submitted * 100, 1) + "%" : "-"
         };
     }
 

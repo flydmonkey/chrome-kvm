@@ -730,6 +730,17 @@ test("移动包统计", async function (t) {
         assert.strictEqual(report["被±127截断的包"], 1);
         // X 丢 200-127=73，Y 丢 300-127=173
         assert.strictEqual(report["截断丢掉的位移"], 73 + 173);
+        assert.strictEqual(report["单轴最大请求位移"], 300, "峰值取两轴绝对值的较大者");
+    });
+
+    await t.test("没截断时峰值也要记，它决定余量累加值不值得做", async function () {
+        const {ch} = relativeChip();
+        ch.resetMoveStats();
+        ch.mouseMoveBy(40, -90);
+        await settle();
+        const report = ch.reportMoveStats();
+        assert.strictEqual(report["被±127截断的包"], 0, "没到 127，不该算截断");
+        assert.strictEqual(report["单轴最大请求位移"], 90, "但峰值仍要如实记下来");
     });
 
     await t.test("平均耗时的分母是发出去的包，不是上层调用次数", async function () {
