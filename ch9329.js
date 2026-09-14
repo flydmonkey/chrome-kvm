@@ -8,6 +8,18 @@ function Ch9329(writer, mouseAbsolute, reader) {
     this._queueRunning = false;
     this._movePending = null;
     this._moveQueued = false;
+    // 移动包的实测统计。位移会从两个地方丢：一是 writeMove 的合并（有包在路上时
+    // 后来的移动只覆盖不排队），二是相对模式单包 ±127 的截断。两者各占多少只能
+    // 实测，不能拍脑袋，所以分开记
+    this.moveStats = {
+        submitted: 0,    // 上层调了多少次移动
+        sent: 0,         // 真正发到线上的包数
+        clamped: 0,      // 其中被 ±127 截断的包数
+        lostUnits: 0,    // 截断丢掉的位移总量
+        totalWaitMs: 0,  // 发包并等应答的累计耗时
+        maxWaitMs: 0,
+        since: Date.now()
+    };
     this._readLoopStarted = false;
     this._ackSupported = true;
     this._ackMisses = 0;
@@ -316,7 +328,15 @@ function Ch9329(writer, mouseAbsolute, reader) {
         while (this._queue.length) {
             let job = this._queue.shift();
             let packet = job.build ? job.build() : job.packet;
+            let startedAt = (job.isMove && packet) ? Date.now() : 0;
             let frame = packet ? await this._transfer(packet, job.retries) : null;
+            if (startedAt) {
+                let waited = Date.now() - startedAt;
+                this.moveStats.totalWaitMs += waited;
+                if (waited > this.moveStats.maxWaitMs) {
+                    this.moveStats.maxWaitMs = waited;
+                }
+            }
             if (job.resolve) {
                 job.resolve(frame);
             }
@@ -340,6 +360,7 @@ function Ch9329(writer, mouseAbsolute, reader) {
 
     // 移动包：队列中只保留最新一个，避免 9600bps 下淹没按键包
     this.writeMove = function (packet) {
+        this.moveStats.submitted++;
         this._movePending = packet;
         if (this._moveQueued) {
             return Promise.resolve(null);
@@ -348,13 +369,58 @@ function Ch9329(writer, mouseAbsolute, reader) {
         let self = this;
         return this._enqueue({
             retries: 0,
+            isMove: true,
             build: function () {
                 self._moveQueued = false;
                 let pending = self._movePending;
                 self._movePending = null;
+                if (pending) {
+                    self.moveStats.sent++;
+                }
                 return pending;
             }
         });
+    }
+
+    // 截断掉的位移要记下来：它决定了「余量累加」那个改法值不值得做
+    this._countClamp = function (wantX, wantY, gotX, gotY) {
+        if (wantX === gotX && wantY === gotY) {
+            return;
+        }
+        this.moveStats.clamped++;
+        this.moveStats.lostUnits += Math.abs(wantX - gotX) + Math.abs(wantY - gotY);
+    }
+
+    this.resetMoveStats = function () {
+        this.moveStats.submitted = 0;
+        this.moveStats.sent = 0;
+        this.moveStats.clamped = 0;
+        this.moveStats.lostUnits = 0;
+        this.moveStats.totalWaitMs = 0;
+        this.moveStats.maxWaitMs = 0;
+        this.moveStats.since = Date.now();
+        return "已清零，现在开始移动鼠标，之后运行 ch.reportMoveStats()";
+    }
+
+    this.reportMoveStats = function () {
+        let s = this.moveStats;
+        let seconds = (Date.now() - s.since) / 1000;
+        function round(v, digits) {
+            let f = Math.pow(10, digits);
+            return Math.round(v * f) / f;
+        }
+        return {
+            "统计时长(秒)": round(seconds, 1),
+            "上层移动次数": s.submitted,
+            "实际发出包数": s.sent,
+            "被合并丢弃": s.submitted - s.sent,
+            "丢弃占比": s.submitted ? round((s.submitted - s.sent) / s.submitted * 100, 1) + "%" : "-",
+            "每秒发出包数": seconds > 0 ? round(s.sent / seconds, 1) : 0,
+            "单包平均耗时(ms)": s.sent ? round(s.totalWaitMs / s.sent, 2) : 0,
+            "单包最慢(ms)": s.maxWaitMs,
+            "被±127截断的包": s.clamped,
+            "截断丢掉的位移": s.lostUnits
+        };
     }
 
     this.getInfo = async function () {
@@ -760,8 +826,11 @@ function Ch9329(writer, mouseAbsolute, reader) {
                 this._lastClientY = clientY;
                 return;
             }
-            let rdx = this.clamp(Math.round(clientX - this._lastClientX), -127, 127);
-            let rdy = this.clamp(Math.round(clientY - this._lastClientY), -127, 127);
+            let wantX = Math.round(clientX - this._lastClientX);
+            let wantY = Math.round(clientY - this._lastClientY);
+            let rdx = this.clamp(wantX, -127, 127);
+            let rdy = this.clamp(wantY, -127, 127);
+            this._countClamp(wantX, wantY, rdx, rdy);
             this._lastClientX = clientX;
             this._lastClientY = clientY;
             this.lastAbsX = point.x;
@@ -806,8 +875,11 @@ function Ch9329(writer, mouseAbsolute, reader) {
         if (mouseAbsolute) {
             return;
         }
-        let rdx = this.clamp(Math.round(dx), -127, 127);
-        let rdy = this.clamp(Math.round(dy), -127, 127);
+        let wantX = Math.round(dx);
+        let wantY = Math.round(dy);
+        let rdx = this.clamp(wantX, -127, 127);
+        let rdy = this.clamp(wantY, -127, 127);
+        this._countClamp(wantX, wantY, rdx, rdy);
         if (rdx === 0 && rdy === 0) {
             return;
         }

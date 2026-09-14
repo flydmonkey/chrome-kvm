@@ -684,6 +684,84 @@ test("波特率白名单", async function (t) {
     });
 });
 
+test("移动包统计", async function (t) {
+    // mouseMoveBy 在绝对模式下直接 return，用 newChip() 测截断会假通过
+    function relativeChip() {
+        const chip = createFakeChip();
+        return {chip: chip, ch: new Ch9329(chip.writer, false, chip.reader)};
+    }
+    function settle() {
+        return new Promise(function (r) { setTimeout(r, 30); });
+    }
+
+    await t.test("合并丢弃的包被算进去", async function () {
+        const {ch} = newChip();
+        ch.resetMoveStats();
+        // 不 await：让后面几个在前一个还在路上时提交，正好触发合并
+        ch.sendAbsolutePacket(0x00, 0x00, true);
+        ch.sendAbsolutePacket(0x00, 0x00, true);
+        ch.sendAbsolutePacket(0x00, 0x00, true);
+        await ch.sendAbsolutePacket(0x00, 0x00, true);
+        const report = ch.reportMoveStats();
+        assert.strictEqual(report["上层移动次数"], 4);
+        assert.ok(report["实际发出包数"] > 0, "至少要发出去一个");
+        assert.ok(report["实际发出包数"] < 4, "有包被合并掉才说明统计点对了");
+        assert.strictEqual(report["被合并丢弃"], 4 - report["实际发出包数"]);
+    });
+
+    await t.test("没有截断时不记丢失", async function () {
+        const {chip, ch} = relativeChip();
+        ch.resetMoveStats();
+        ch.mouseMoveBy(10, -20);
+        await settle();
+        assert.strictEqual(framesOf(chip, 0x05).length, 1, "包得真发出去，否则是假通过");
+        const report = ch.reportMoveStats();
+        assert.strictEqual(report["被±127截断的包"], 0);
+        assert.strictEqual(report["截断丢掉的位移"], 0);
+    });
+
+    await t.test("±127 截断丢掉的位移要如实记账", async function () {
+        const {chip, ch} = relativeChip();
+        ch.resetMoveStats();
+        ch.mouseMoveBy(200, -300);
+        await settle();
+        assert.strictEqual(framesOf(chip, 0x05).length, 1, "包得真发出去，否则是假通过");
+        const report = ch.reportMoveStats();
+        assert.strictEqual(report["被±127截断的包"], 1);
+        // X 丢 200-127=73，Y 丢 300-127=173
+        assert.strictEqual(report["截断丢掉的位移"], 73 + 173);
+    });
+
+    await t.test("平均耗时的分母是发出去的包，不是上层调用次数", async function () {
+        const {ch} = relativeChip();
+        ch.resetMoveStats();
+        // 连发四次，中间几次会被合并掉；被合并的包从没上过线，不该摊薄平均值
+        ch.mouseMoveBy(5, 5);
+        ch.mouseMoveBy(5, 5);
+        ch.mouseMoveBy(5, 5);
+        ch.mouseMoveBy(5, 5);
+        await settle();
+        const report = ch.reportMoveStats();
+        const sent = report["实际发出包数"];
+        assert.ok(sent > 0 && sent < 4, "要真的发生合并，这个测试才有意义");
+        assert.strictEqual(report["单包平均耗时(ms)"],
+            Math.round(ch.moveStats.totalWaitMs / sent * 100) / 100,
+            "分母必须是 sent");
+    });
+
+    await t.test("清零后重新计数", async function () {
+        const {ch} = relativeChip();
+        ch.mouseMoveBy(500, 0);
+        await settle();
+        assert.ok(ch.reportMoveStats()["截断丢掉的位移"] > 0, "先要真的攒下数据");
+        ch.resetMoveStats();
+        const report = ch.reportMoveStats();
+        assert.strictEqual(report["上层移动次数"], 0);
+        assert.strictEqual(report["实际发出包数"], 0);
+        assert.strictEqual(report["截断丢掉的位移"], 0);
+    });
+});
+
 test("工作模式", async function (t) {
     // 模式 0 是键盘+鼠标+自定义HID 的三功能复合设备，macOS 绑不上里面的相对
     // 鼠标；厂商对 macOS/Linux/Android 建议模式 2（键盘+鼠标）。
