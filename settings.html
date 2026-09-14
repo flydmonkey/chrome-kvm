@@ -288,10 +288,16 @@
         <div class="field">
             <label for="choice6">串口波特率</label>
             <select id="choice6" name="choice6">
+                <!-- 选项由 fillBaudOptions() 按 Ch9329.BAUD_RATES 生成，这里只是兜底 -->
                 <option value="9600">9600（芯片出厂默认）</option>
-                <option value="115200">115200（鼠标更跟手）</option>
+                <option value="115200">115200</option>
             </select>
-            <p class="hint" id="baudHint">改波特率需要写进芯片，写入后断电重插 CH9329 才生效</p>
+            <p class="hint" id="baudHint">
+                改波特率需要写进芯片，写入后断电重插 CH9329 才生效。
+                <strong>115200 以上只有 CH9329F 支持</strong>，原版 CH9329 写了会连不上；
+                串口那一端也要跟得上（CH340 到 2M，CH343 到 6M）。
+                KVM 的数据包只有十几字节，115200 已经够用，再高收益很小。
+            </p>
         </div>
         <div class="field">
             <label for="choice7">芯片工作模式</label>

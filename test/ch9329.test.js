@@ -649,6 +649,41 @@ test("参数配置与波特率", async function (t) {
     });
 });
 
+test("波特率白名单", async function (t) {
+    // BAUD_RATES 同时是探测列表和设置页下拉框的来源。写进一个不在列表里的值，
+    // 下次连接就探测不到，而恢复出厂配置又要求能通信——等于没有软件退路。
+    await t.test("列表本身是升序且不重复", function () {
+        const list = Ch9329.BAUD_RATES;
+        assert.ok(list.length >= 2);
+        const sorted = list.slice().sort(function (a, b) { return a - b; });
+        assert.deepStrictEqual(list, sorted, "顺序即探测顺序，升序便于阅读");
+        assert.strictEqual(new Set(list).size, list.length, "不能有重复，否则会白探一次");
+    });
+
+    await t.test("保留出厂默认的 9600", function () {
+        assert.ok(Ch9329.BAUD_RATES.indexOf(9600) !== -1,
+            "芯片出厂就是 9600，列表里没有它就连不上新芯片");
+    });
+
+    await t.test("拒绝列表之外的波特率，一个包都不发", async function () {
+        const {chip, ch} = newChip({baudRate: 9600});
+        const result = await ch.setBaudRate(57600);
+        assert.strictEqual(result.ok, false);
+        assert.match(result.reason, /探测不到/);
+        assert.strictEqual(chip.state.received.length, 0, "连读配置都不该发");
+    });
+
+    await t.test("列表里的每个值都能写进去", async function () {
+        for (const baud of Ch9329.BAUD_RATES) {
+            const {chip, ch} = newChip({baudRate: 9600});
+            const result = await ch.setBaudRate(baud);
+            assert.strictEqual(result.ok, true, baud + " 应该可写");
+            assert.strictEqual(ch.readParaBaudRate(chip.state.paraCfg), baud);
+            assert.deepStrictEqual(chip.state.rejected, [], baud + " 不该被芯片判错");
+        }
+    });
+});
+
 test("工作模式", async function (t) {
     // 模式 0 是键盘+鼠标+自定义HID 的三功能复合设备，macOS 绑不上里面的相对
     // 鼠标；厂商对 macOS/Linux/Android 建议模式 2（键盘+鼠标）。

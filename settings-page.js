@@ -82,13 +82,7 @@ function renderUsb() {
         }
     }
 
-    let baudSelector = document.querySelector("#choice6");
-    for (let i = 0; i < baudSelector.options.length; i++) {
-        let option = baudSelector.options[i];
-        if (parseInt(option.value) === (settings.baudRate || 9600)) {
-            option.setAttribute("selected", "selected");
-        }
-    }
+    fillBaudOptions(settings.baudRate || 9600);
 
     // 记住上次写进芯片的工作模式。不还原的话下拉框每次都回到模式 0，
     // 看起来就像刚才那次写入没生效
@@ -119,6 +113,32 @@ async function releasePort(port) {
     } catch (e) {
         console.warn("关闭串口失败。请刷新本页释放端口，否则控制页会连不上", e);
     }
+}
+
+function baudNote(baud) {
+    if (baud === 9600) {
+        return "（芯片出厂默认）";
+    }
+    if (baud === 115200) {
+        return "（推荐；原版 CH9329 的上限）";
+    }
+    return "（需 CH9329F + 高速串口芯片）";
+}
+
+// 下拉框直接由探测列表生成。硬编码成两份的话迟早会对不上，而一旦写进一个
+// 探测不到的波特率，芯片就再也连不上了，所以这里必须是同一份数据。
+function fillBaudOptions(selected) {
+    let selector = document.querySelector("#choice6");
+    selector.replaceChildren();
+    Ch9329.BAUD_RATES.forEach(function (baud) {
+        let option = document.createElement("option");
+        option.value = String(baud);
+        option.textContent = baud + baudNote(baud);
+        if (baud === selected) {
+            option.selected = true;
+        }
+        selector.appendChild(option);
+    });
 }
 
 // 几个写芯片配置的动作外壳完全一样：挑对端口 → 连上 → 确认芯片真在应答 →

@@ -383,6 +383,14 @@ function Ch9329(writer, mouseAbsolute, reader) {
     }
 
     this.setBaudRate = async function (baud) {
+        // 只许写探测列表里的值。写了别的，下次连接就找不回芯片，而恢复出厂
+        // 配置本身也要求能和芯片通信——等于没有软件退路了
+        if (Ch9329.BAUD_RATES.indexOf(baud) === -1) {
+            return {
+                ok: false,
+                reason: "不支持的波特率 " + baud + "，写进去之后连接时探测不到，芯片会失联"
+            };
+        }
         let cfg = await this.getParaCfg();
         if (!cfg) {
             return {ok: false, reason: "读取芯片参数配置失败"};
@@ -849,7 +857,17 @@ Ch9329.DRAG_DEAD_ZONE_PX = 6;
 // 下一个字节就算本包结束」，留不够包会被粘在一起。
 Ch9329.PACKET_GAP_MS = 4;
 
-Ch9329.BAUD_RATES = [9600, 115200];
+// 探测列表。设置页的下拉框也由它生成，所以它同时是「允许写入芯片」的白名单：
+// 写进一个探测不到的值，芯片就再也连不上了——连「恢复出厂配置」都得先能通信。
+//
+// 取值是 CH9329F 与常见高速串口芯片（CH343）两边都支持的交集，上限压在 2M：
+// CH343 是全速 USB，手册明确建议避开 3Mbps 及以上的连续通讯。CH9329F 自己标称
+// 到 15M，但那要配更快的串口芯片才有意义。
+//
+// 原版 CH9329（无 F 后缀）只支持到 115200，给它写更高的值会连不上。
+//
+// 数组顺序就是探测顺序，常用的排前面；上次连上的那个会被 baudRateOrder 提到最前。
+Ch9329.BAUD_RATES = [9600, 115200, 230400, 460800, 921600, 1000000, 1500000, 2000000];
 
 // 浏览器里靠 <script> 全局引入；这里只是让 node 下的测试能 require
 if (typeof module !== "undefined" && module.exports) {
