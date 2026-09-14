@@ -12,16 +12,18 @@ function Ch9329(writer, mouseAbsolute, reader) {
     // 后来的移动只覆盖不排队），二是相对模式单包 ±127 的截断。两者各占多少只能
     // 实测，不能拍脑袋，所以分开记
     this.moveStats = {
-        submitted: 0,    // 上层调了多少次移动
+        submitted: 0,    // 交给发送队列的包数
         sent: 0,         // 真正发到线上的包数
-        clamped: 0,      // 其中被 ±127 截断的包数
-        lostUnits: 0,    // 截断丢掉的位移总量
-        maxWanted: 0,    // 单轴请求过的最大位移。只看截断次数不够：峰值离 127
-                         // 越远，余量累加的收益越大
+        split: 0,        // 因为超过 ±127 被拆成多包的移动次数
+        carried: 0,      // 连发上限都没兜住、余量推迟到下一帧的次数
+        maxWanted: 0,    // 单轴请求过的最大位移
         totalWaitMs: 0,  // 发包并等应答的累计耗时
         maxWaitMs: 0,
         since: Date.now()
     };
+    // 相对模式下没送完的位移。攒在这里下一帧补发，保证总位移不丢
+    this._relCarryX = 0;
+    this._relCarryY = 0;
     this._readLoopStarted = false;
     this._ackSupported = true;
     this._ackMisses = 0;
@@ -331,6 +333,9 @@ function Ch9329(writer, mouseAbsolute, reader) {
             let job = this._queue.shift();
             let packet = job.build ? job.build() : job.packet;
             let startedAt = (job.isMove && packet) ? Date.now() : 0;
+            if (startedAt) {
+                this.moveStats.sent++;
+            }
             let frame = packet ? await this._transfer(packet, job.retries) : null;
             if (startedAt) {
                 let waited = Date.now() - startedAt;
@@ -376,32 +381,23 @@ function Ch9329(writer, mouseAbsolute, reader) {
                 self._moveQueued = false;
                 let pending = self._movePending;
                 self._movePending = null;
-                if (pending) {
-                    self.moveStats.sent++;
-                }
                 return pending;
             }
         });
     }
 
-    // 截断掉的位移要记下来：它决定了「余量累加」那个改法值不值得做
-    this._countClamp = function (wantX, wantY, gotX, gotY) {
-        let peak = Math.max(Math.abs(wantX), Math.abs(wantY));
-        if (peak > this.moveStats.maxWanted) {
-            this.moveStats.maxWanted = peak;
-        }
-        if (wantX === gotX && wantY === gotY) {
-            return;
-        }
-        this.moveStats.clamped++;
-        this.moveStats.lostUnits += Math.abs(wantX - gotX) + Math.abs(wantY - gotY);
+    // 拆包连发专用：照常排队，但既不合并也不重发。合并只会留下最后一段，
+    // 重发则会把同一段位移送两遍——相对位移是累加的，发两遍就是走两倍距离
+    this.writeMoveNow = function (packet) {
+        this.moveStats.submitted++;
+        return this._enqueue({packet: packet, retries: 0, isMove: true});
     }
 
     this.resetMoveStats = function () {
         this.moveStats.submitted = 0;
         this.moveStats.sent = 0;
-        this.moveStats.clamped = 0;
-        this.moveStats.lostUnits = 0;
+        this.moveStats.split = 0;
+        this.moveStats.carried = 0;
         this.moveStats.maxWanted = 0;
         this.moveStats.totalWaitMs = 0;
         this.moveStats.maxWaitMs = 0;
@@ -418,19 +414,16 @@ function Ch9329(writer, mouseAbsolute, reader) {
         }
         return {
             "统计时长(秒)": round(seconds, 1),
-            "上层移动次数": s.submitted,
+            "提交包数": s.submitted,
             "实际发出包数": s.sent,
             "被合并丢弃": s.submitted - s.sent,
             "丢弃占比": s.submitted ? round((s.submitted - s.sent) / s.submitted * 100, 1) + "%" : "-",
             "每秒发出包数": seconds > 0 ? round(s.sent / seconds, 1) : 0,
             "单包平均耗时(ms)": s.sent ? round(s.totalWaitMs / s.sent, 2) : 0,
             "单包最慢(ms)": s.maxWaitMs,
-            "被±127截断的包": s.clamped,
-            "截断丢掉的位移": s.lostUnits,
-            "单轴最大请求位移": s.maxWanted,
-            // 分母用 submitted 而不是 sent：截断发生在提交那一刻，被合并掉的
-            // 包同样经历过截断。用 sent 当分母会算出超过 100% 的怪数字
-            "截断占比": s.submitted ? round(s.clamped / s.submitted * 100, 1) + "%" : "-"
+            "拆包连发次数": s.split,
+            "余量推迟次数": s.carried,
+            "单轴最大请求位移": s.maxWanted
         };
     }
 
@@ -760,9 +753,13 @@ function Ch9329(writer, mouseAbsolute, reader) {
     }
 
     // CMD_SEND_MS_REL_DATA：01 + 按键 + dx + dy + 滚轮（dx/dy 为补码，范围 -127..127）
+    this.relativePacket = function (buttons, dx, dy, wheel) {
+        return this.toUnit8Array(
+            [0x57, 0xAB, this.ADDR, 0x05, 0x05, 0x01, buttons, dx & 0xff, dy & 0xff, wheel & 0xff]);
+    }
+
     this.sendRelativePacket = function (buttons, dx, dy, wheel, asMove) {
-        let data = [0x57, 0xAB, this.ADDR, 0x05, 0x05, 0x01, buttons, dx & 0xff, dy & 0xff, wheel & 0xff];
-        let packet = this.toUnit8Array(data);
+        let packet = this.relativePacket(buttons, dx, dy, wheel);
         return asMove ? this.writeMove(packet) : this.write(packet);
     }
 
@@ -839,20 +836,11 @@ function Ch9329(writer, mouseAbsolute, reader) {
             }
             let wantX = Math.round(clientX - this._lastClientX);
             let wantY = Math.round(clientY - this._lastClientY);
-            let rdx = this.clamp(wantX, -127, 127);
-            let rdy = this.clamp(wantY, -127, 127);
-            this._countClamp(wantX, wantY, rdx, rdy);
             this._lastClientX = clientX;
             this._lastClientY = clientY;
             this.lastAbsX = point.x;
             this.lastAbsY = point.y;
-            if (rdx === 0 && rdy === 0) {
-                return;
-            }
-            if (this.clicked.command !== 0x00 && this._clickArmed) {
-                this._clickArmed = false;
-            }
-            this.sendRelativePacket(this.clicked.command, rdx, rdy, 0, true);
+            this._emitRelativeMove(wantX, wantY);
             return;
         }
 
@@ -881,23 +869,69 @@ function Ch9329(writer, mouseAbsolute, reader) {
     // 指针锁定时浏览器直接给出位移，不用再按光标位置差分。锁定后光标不受
     // 屏幕边界限制，正好补上相对模式最大的短板：本机光标顶到屏幕边缘后，
     // clientX 不再变化，被控端光标就跟着卡在那边走不动了。
-    // 单包只能带 ±127，甩得特别快时超出的部分会被截掉。
+    // 单包只能带 ±127，靠 _emitRelativeMove 拆成多包发出去。
     this.mouseMoveBy = function (dx, dy) {
         if (mouseAbsolute) {
             return;
         }
-        let wantX = Math.round(dx);
-        let wantY = Math.round(dy);
-        let rdx = this.clamp(wantX, -127, 127);
-        let rdy = this.clamp(wantY, -127, 127);
-        this._countClamp(wantX, wantY, rdx, rdy);
-        if (rdx === 0 && rdy === 0) {
+        return this._emitRelativeMove(Math.round(dx), Math.round(dy));
+    }
+
+    // 协议限定单包 ±127，而实测一次快甩能请求到一千多个单位，直接截断会丢掉
+    // 八成以上的距离。链路这边有富余（单包往返不到 1ms，事件间隔近 30ms），
+    // 所以超出的部分当场拆成多个包连发，而不是丢掉、也不是攒到下一帧——攒着
+    // 发会让光标在手停下之后还滑行一段。
+    //
+    // 连发有上限：异常的大跳不该把串口占住。超过上限的余量留给下一帧，总位移
+    // 仍然一点不少。
+    this._emitRelativeMove = function (wantX, wantY) {
+        // 上一帧没送完的先补上
+        wantX += this._relCarryX;
+        wantY += this._relCarryY;
+        this._relCarryX = 0;
+        this._relCarryY = 0;
+
+        let peak = Math.max(Math.abs(wantX), Math.abs(wantY));
+        if (peak > this.moveStats.maxWanted) {
+            this.moveStats.maxWanted = peak;
+        }
+        if (wantX === 0 && wantY === 0) {
             return;
+        }
+
+        let steps = Math.ceil(peak / 127);
+        let burst = Math.min(steps, Ch9329.MAX_MOVE_BURST);
+        if (steps > 1) {
+            this.moveStats.split++;
         }
         if (this.clicked.command !== 0x00 && this._clickArmed) {
             this._clickArmed = false;
         }
-        return this.sendRelativePacket(this.clicked.command, rdx, rdy, 0, true);
+
+        let leftX = wantX;
+        let leftY = wantY;
+        let last = null;
+        for (let i = 0; i < burst; i++) {
+            let sx = this.clamp(leftX, -127, 127);
+            let sy = this.clamp(leftY, -127, 127);
+            if (sx === 0 && sy === 0) {
+                break;
+            }
+            leftX -= sx;
+            leftY -= sy;
+            // 只有单包时才走合并通道（有包在路上就只留最新的那个）。拆包连发
+            // 必须逐个排队：合并只会留下最后一段，前面几段的位移就没了
+            let packet = this.relativePacket(this.clicked.command, sx, sy, 0);
+            last = burst === 1 ? this.writeMove(packet) : this.writeMoveNow(packet);
+        }
+
+        this._relCarryX = leftX;
+        this._relCarryY = leftY;
+        if (leftX !== 0 || leftY !== 0) {
+            // 连发上限都没兜住，这部分推迟到下一帧
+            this.moveStats.carried++;
+        }
+        return last;
     }
 
     // 指针解锁后光标会重新出现，位置和锁定前不连续，下一次移动必须重新取
@@ -905,6 +939,9 @@ function Ch9329(writer, mouseAbsolute, reader) {
     this.resetRelativeOrigin = function () {
         this._lastClientX = null;
         this._lastClientY = null;
+        // 攒着的余量属于上一段操作，解锁后再补发就是一段莫名其妙的位移
+        this._relCarryX = 0;
+        this._relCarryY = 0;
     }
 
     this.mouseButtonDown = function (videoEl, clientX, clientY, buttons) {
@@ -991,6 +1028,10 @@ Ch9329.PACKET_GAP_MS = 4;
 // 原版 CH9329（无 F 后缀）只支持到 115200，给它写更高的值会连不上。
 //
 // 数组顺序就是探测顺序，常用的排前面；上次连上的那个会被 baudRateOrder 提到最前。
+// 一次移动最多拆成这么多包。127×16=2032，实测快甩的峰值在 1000 出头，留了
+// 一倍富余；再多就封顶，免得某次异常的大跳把串口占住。超出的留给下一帧
+Ch9329.MAX_MOVE_BURST = 16;
+
 Ch9329.BAUD_RATES = [9600, 115200, 230400, 460800, 921600, 1000000, 1500000, 2000000];
 
 // 浏览器里靠 <script> 全局引入；这里只是让 node 下的测试能 require

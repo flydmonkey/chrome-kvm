@@ -27,6 +27,20 @@ function newChip(options) {
     return {chip: chip, ch: ch};
 }
 
+// 等发送队列真正排空。拆包连发一次能产生十几个包，固定睡几十毫秒会随机不够
+async function drain(ch, maxMs) {
+    const deadline = Date.now() + (maxMs == null ? 5000 : maxMs);
+    while (Date.now() < deadline) {
+        if (!ch._queueRunning && ch._queue.length === 0) {
+            // 再让一轮微任务跑完，确保最后一个包已经写进 fake chip
+            await new Promise(function (r) { setTimeout(r, 5); });
+            return;
+        }
+        await new Promise(function (r) { setTimeout(r, 5); });
+    }
+    throw new Error("发送队列没能在 " + maxMs + "ms 内排空");
+}
+
 function fakeVideo(width, height, videoWidth, videoHeight) {
     return {
         videoWidth: videoWidth == null ? width : videoWidth,
@@ -325,7 +339,7 @@ test("指针锁定下的相对移动", async function (t) {
         assert.strictEqual(framesOf(chip, 0x05).length, 1, "首帧不该被吞掉");
     });
 
-    await t.test("单包超过 ±127 要截断，不能溢出成反方向", async function () {
+    await t.test("单包不能溢出成反方向", async function () {
         const {chip, ch} = newRelativeChip();
         ch.mouseMoveBy(400, -400);
         await new Promise(function (r) { setTimeout(r, 30); });
@@ -684,16 +698,114 @@ test("波特率白名单", async function (t) {
     });
 });
 
+test("超过 ±127 的移动拆成多包连发", async function (t) {
+    function relativeChip() {
+        const chip = createFakeChip();
+        return {chip: chip, ch: new Ch9329(chip.writer, false, chip.reader)};
+    }
+    // 把已发出的相对包还原成带符号的位移，用来核对总量
+    function movedBy(chip) {
+        let x = 0;
+        let y = 0;
+        framesOf(chip, 0x05).forEach(function (f) {
+            x += (f[7] << 24) >> 24;
+            y += (f[8] << 24) >> 24;
+        });
+        return {x: x, y: y};
+    }
+
+    await t.test("小位移仍然只发一个包，不引入多余流量", async function () {
+        const {chip, ch} = relativeChip();
+        ch.mouseMoveBy(30, -20);
+        await drain(ch);
+        assert.strictEqual(framesOf(chip, 0x05).length, 1);
+        assert.deepStrictEqual(movedBy(chip), {x: 30, y: -20});
+    });
+
+    await t.test("正好 127 是边界，不该被拆", async function () {
+        const {chip, ch} = relativeChip();
+        ch.mouseMoveBy(127, -127);
+        await drain(ch);
+        assert.strictEqual(framesOf(chip, 0x05).length, 1, "127 还在单包能力内");
+        assert.deepStrictEqual(movedBy(chip), {x: 127, y: -127});
+    });
+
+    await t.test("128 就要拆成两包，总位移一个单位都不能少", async function () {
+        const {chip, ch} = relativeChip();
+        ch.mouseMoveBy(128, 0);
+        await drain(ch);
+        assert.strictEqual(framesOf(chip, 0x05).length, 2);
+        assert.deepStrictEqual(movedBy(chip), {x: 128, y: 0});
+    });
+
+    await t.test("实测到的峰值 1062 要完整送达（原本会丢掉 88%）", async function () {
+        const {chip, ch} = relativeChip();
+        ch.mouseMoveBy(1062, -1062);
+        await drain(ch);
+        const frames = framesOf(chip, 0x05);
+        assert.strictEqual(frames.length, Math.ceil(1062 / 127), "9 个包");
+        assert.deepStrictEqual(movedBy(chip), {x: 1062, y: -1062}, "总位移必须精确相等");
+        frames.forEach(function (f) {
+            const dx = (f[7] << 24) >> 24;
+            assert.ok(dx >= -127 && dx <= 127, "每个包都不能越界");
+        });
+    });
+
+    await t.test("两轴步数不同也要各自走完", async function () {
+        const {chip, ch} = relativeChip();
+        ch.mouseMoveBy(300, -50);
+        await drain(ch);
+        assert.deepStrictEqual(movedBy(chip), {x: 300, y: -50});
+    });
+
+    await t.test("超过连发上限的部分留给下一帧，不丢失", async function () {
+        const {chip, ch} = relativeChip();
+        const huge = 127 * Ch9329.MAX_MOVE_BURST + 500;
+        ch.mouseMoveBy(huge, 0);
+        await drain(ch);
+        const first = movedBy(chip).x;
+        assert.strictEqual(first, 127 * Ch9329.MAX_MOVE_BURST, "这一帧发满上限为止");
+        assert.strictEqual(ch.reportMoveStats()["余量推迟次数"], 1);
+        // 下一帧即使一动不动，欠下的也要补上
+        ch.mouseMoveBy(0, 0);
+        await drain(ch);
+        assert.strictEqual(movedBy(chip).x, huge, "欠的位移要补齐");
+    });
+
+    await t.test("解锁指针会丢掉欠账，避免补发一段莫名其妙的位移", async function () {
+        const {chip, ch} = relativeChip();
+        ch.mouseMoveBy(127 * Ch9329.MAX_MOVE_BURST + 500, 0);
+        await drain(ch);
+        const before = movedBy(chip).x;
+        ch.resetRelativeOrigin();
+        ch.mouseMoveBy(0, 0);
+        await drain(ch);
+        assert.strictEqual(movedBy(chip).x, before, "解锁后不该再补发");
+    });
+
+    await t.test("拆出来的包不会被合并吞掉", async function () {
+        const {chip, ch} = relativeChip();
+        // 连着提交两次大位移，第二次不能把第一次没发完的挤掉
+        ch.mouseMoveBy(500, 0);
+        ch.mouseMoveBy(500, 0);
+        await drain(ch);
+        assert.strictEqual(movedBy(chip).x, 1000, "两次的总量都要送到");
+    });
+
+    await t.test("绝对模式不受影响", async function () {
+        const {chip, ch} = newChip();
+        ch.mouseMoveBy(1000, 1000);
+        await drain(ch);
+        assert.strictEqual(framesOf(chip, 0x05).length, 0, "绝对模式不该发相对包");
+    });
+});
+
 test("移动包统计", async function (t) {
     // mouseMoveBy 在绝对模式下直接 return，用 newChip() 测截断会假通过
     function relativeChip() {
         const chip = createFakeChip();
         return {chip: chip, ch: new Ch9329(chip.writer, false, chip.reader)};
     }
-    function settle() {
-        return new Promise(function (r) { setTimeout(r, 30); });
-    }
-
     await t.test("合并丢弃的包被算进去", async function () {
         const {ch} = newChip();
         ch.resetMoveStats();
@@ -703,44 +815,42 @@ test("移动包统计", async function (t) {
         ch.sendAbsolutePacket(0x00, 0x00, true);
         await ch.sendAbsolutePacket(0x00, 0x00, true);
         const report = ch.reportMoveStats();
-        assert.strictEqual(report["上层移动次数"], 4);
+        assert.strictEqual(report["提交包数"], 4);
         assert.ok(report["实际发出包数"] > 0, "至少要发出去一个");
         assert.ok(report["实际发出包数"] < 4, "有包被合并掉才说明统计点对了");
         assert.strictEqual(report["被合并丢弃"], 4 - report["实际发出包数"]);
     });
 
-    await t.test("没有截断时不记丢失", async function () {
+    await t.test("小位移不算拆包", async function () {
         const {chip, ch} = relativeChip();
         ch.resetMoveStats();
         ch.mouseMoveBy(10, -20);
-        await settle();
+        await drain(ch);
         assert.strictEqual(framesOf(chip, 0x05).length, 1, "包得真发出去，否则是假通过");
         const report = ch.reportMoveStats();
-        assert.strictEqual(report["被±127截断的包"], 0);
-        assert.strictEqual(report["截断丢掉的位移"], 0);
+        assert.strictEqual(report["拆包连发次数"], 0);
+        assert.strictEqual(report["单轴最大请求位移"], 20);
     });
 
-    await t.test("±127 截断丢掉的位移要如实记账", async function () {
-        const {chip, ch} = relativeChip();
+    await t.test("拆包次数按「移动」记，不按包记", async function () {
+        const {ch} = relativeChip();
         ch.resetMoveStats();
         ch.mouseMoveBy(200, -300);
-        await settle();
-        assert.strictEqual(framesOf(chip, 0x05).length, 1, "包得真发出去，否则是假通过");
+        await drain(ch);
         const report = ch.reportMoveStats();
-        assert.strictEqual(report["被±127截断的包"], 1);
-        // X 丢 200-127=73，Y 丢 300-127=173
-        assert.strictEqual(report["截断丢掉的位移"], 73 + 173);
+        assert.strictEqual(report["拆包连发次数"], 1, "一次移动拆成多包，只算一次");
+        assert.strictEqual(report["实际发出包数"], 3, "300/127 向上取整是 3");
         assert.strictEqual(report["单轴最大请求位移"], 300, "峰值取两轴绝对值的较大者");
     });
 
-    await t.test("没截断时峰值也要记，它决定余量累加值不值得做", async function () {
+    await t.test("峰值不受拆包影响，记的是请求量", async function () {
         const {ch} = relativeChip();
         ch.resetMoveStats();
         ch.mouseMoveBy(40, -90);
-        await settle();
+        await drain(ch);
         const report = ch.reportMoveStats();
-        assert.strictEqual(report["被±127截断的包"], 0, "没到 127，不该算截断");
-        assert.strictEqual(report["单轴最大请求位移"], 90, "但峰值仍要如实记下来");
+        assert.strictEqual(report["拆包连发次数"], 0, "没到 127，不该拆");
+        assert.strictEqual(report["单轴最大请求位移"], 90);
     });
 
     await t.test("平均耗时的分母是发出去的包，不是上层调用次数", async function () {
@@ -751,7 +861,7 @@ test("移动包统计", async function (t) {
         ch.mouseMoveBy(5, 5);
         ch.mouseMoveBy(5, 5);
         ch.mouseMoveBy(5, 5);
-        await settle();
+        await drain(ch);
         const report = ch.reportMoveStats();
         const sent = report["实际发出包数"];
         assert.ok(sent > 0 && sent < 4, "要真的发生合并，这个测试才有意义");
@@ -763,13 +873,14 @@ test("移动包统计", async function (t) {
     await t.test("清零后重新计数", async function () {
         const {ch} = relativeChip();
         ch.mouseMoveBy(500, 0);
-        await settle();
-        assert.ok(ch.reportMoveStats()["截断丢掉的位移"] > 0, "先要真的攒下数据");
+        await drain(ch);
+        assert.ok(ch.reportMoveStats()["拆包连发次数"] > 0, "先要真的攒下数据");
         ch.resetMoveStats();
         const report = ch.reportMoveStats();
-        assert.strictEqual(report["上层移动次数"], 0);
+        assert.strictEqual(report["提交包数"], 0);
         assert.strictEqual(report["实际发出包数"], 0);
-        assert.strictEqual(report["截断丢掉的位移"], 0);
+        assert.strictEqual(report["拆包连发次数"], 0);
+        assert.strictEqual(report["单轴最大请求位移"], 0);
     });
 });
 
