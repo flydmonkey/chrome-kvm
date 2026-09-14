@@ -97,10 +97,11 @@
             text-decoration: underline;
         }
 
-        select {
+        /* 下拉框和输入框共用同一套外观，样式只写一份，加新控件时不会又长歪 */
+        select,
+        input[type="number"] {
             width: 100%;
             box-sizing: border-box;
-            padding: 9px 32px 9px 10px;
             font: inherit;
             color: #e4e4e7;
             /* 必须是不透明色：半透明底会被 Chrome 合成到白底上，
@@ -108,6 +109,12 @@
             background-color: #2e2e31;
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 8px;
+            transition: border-color 0.15s, background-color 0.15s;
+        }
+
+        select {
+            /* 右侧多留出箭头占的位置 */
+            padding: 9px 32px 9px 10px;
             cursor: pointer;
             appearance: none;
             -webkit-appearance: none;
@@ -116,7 +123,13 @@
             background-repeat: no-repeat;
             background-position: right 10px center;
             background-size: 14px;
-            transition: border-color 0.15s, background-color 0.15s;
+        }
+
+        input[type="number"] {
+            /* 没有箭头要让位，左右一样留白 */
+            padding: 9px 10px;
+            /* 让 Chrome 用深色渲染自带的上下微调按钮，否则右侧会糊一块浅色 */
+            color-scheme: dark;
         }
 
         /* 弹出列表里每一行的配色靠 option 自己定，select 上的设置管不到 */
@@ -125,11 +138,13 @@
             background-color: #26262a;
         }
 
-        select:hover {
+        select:hover,
+        input[type="number"]:hover {
             border-color: rgba(255, 255, 255, 0.22);
         }
 
-        select:focus-visible {
+        select:focus-visible,
+        input[type="number"]:focus-visible {
             outline: 2px solid #60a5fa;
             outline-offset: -1px;
         }
