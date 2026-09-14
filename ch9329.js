@@ -118,31 +118,70 @@ function Ch9329(writer, mouseAbsolute, reader) {
         this._rxBuffer = next;
     }
 
-    // 解析一帧：57 AB ADDR CMD LEN DATA SUM，校验和不符则丢弃该帧头继续找
+    // 解析一帧：57 AB ADDR CMD LEN DATA SUM，校验和不符则丢弃该帧头继续找。
+    //
+    // LEN 只当作「至少这么长」：CH9329F 回 GET_PARA_CFG 时 LEN 仍写 50，实际却
+    // 发 65 字节数据（实测整帧 71 字节而非 56），真正的累加和落在最末尾。按 LEN
+    // 死算帧尾会取到一个 0x00 当校验和，整帧被误判损坏丢掉。所以校验和对不上时
+    // 再往后顺延着找，直到累加和吻合的那个字节。
+    this.FRAME_LENGTH_SLACK = 32;
+
     this._shiftFrame = function () {
         let buf = this._rxBuffer;
         for (let i = 0; i + 6 <= buf.length; i++) {
             if (buf[i] !== 0x57 || buf[i + 1] !== 0xAB) {
                 continue;
             }
-            let len = buf[i + 4];
-            let total = 6 + len;
-            if (i + total > buf.length) {
+            let minTotal = 6 + buf[i + 4];
+            if (i + minTotal > buf.length) {
                 if (i > 0) {
                     this._rxBuffer = buf.slice(i);
                 }
                 return null;
             }
-            let sum = 0;
-            for (let k = i; k < i + total - 1; k++) {
-                sum = (sum + buf[k]) & 0xff;
+
+            // 本帧不可能越过下一个帧头。有它兜着，才能把「还没收全」和「真的坏了」
+            // 分开：往后找不到校验和又没有后续帧头时，多半只是数据还没到齐
+            let nextHeader = -1;
+            for (let k = i + 2; k + 1 < buf.length; k++) {
+                if (buf[k] === 0x57 && buf[k + 1] === 0xAB) {
+                    nextHeader = k;
+                    break;
+                }
             }
-            if (sum !== buf[i + total - 1]) {
+
+            let limit = Math.min(minTotal + this.FRAME_LENGTH_SLACK, buf.length - i);
+            if (nextHeader !== -1) {
+                limit = Math.min(limit, nextHeader - i);
+            }
+
+            let running = 0;
+            for (let k = i; k < i + minTotal - 1; k++) {
+                running = (running + buf[k]) & 0xff;
+            }
+            let matched = -1;
+            for (let total = minTotal; total <= limit; total++) {
+                if (buf[i + total - 1] === running) {
+                    matched = total;
+                    break;
+                }
+                running = (running + buf[i + total - 1]) & 0xff;
+            }
+
+            if (matched === -1) {
+                if (nextHeader === -1 && buf.length - i < minTotal + this.FRAME_LENGTH_SLACK) {
+                    // 后面既没有新帧头，长度也还没到容忍上限：等下一块数据再说
+                    if (i > 0) {
+                        this._rxBuffer = buf.slice(i);
+                    }
+                    return null;
+                }
                 this._rxBuffer = buf.slice(i + 2);
                 return this._shiftFrame();
             }
-            let frame = {cmd: buf[i + 3], data: buf.slice(i + 5, i + 5 + len)};
-            this._rxBuffer = buf.slice(i + total);
+
+            let frame = {cmd: buf[i + 3], data: buf.slice(i + 5, i + matched - 1)};
+            this._rxBuffer = buf.slice(i + matched);
             return frame;
         }
         if (buf.length > 512) {
@@ -352,10 +391,12 @@ function Ch9329(writer, mouseAbsolute, reader) {
             packet: this.toUnit8Array([0x57, 0xAB, this.ADDR, 0x08, 0x00]),
             retries: 1
         });
-        if (!frame || frame.cmd !== 0x88 || !frame.data || frame.data.length !== this.PARA_CFG_LENGTH) {
+        // CH9329F 会多回 15 个字节的补零，所以是「不少于 50」而不是「正好 50」。
+        // 有用的配置项都在前 50 字节里，写回去时也只写这 50 个（协议规定的长度）
+        if (!frame || frame.cmd !== 0x88 || !frame.data || frame.data.length < this.PARA_CFG_LENGTH) {
             return null;
         }
-        return frame.data;
+        return frame.data.slice(0, this.PARA_CFG_LENGTH);
     }
 
     this.readParaBaudRate = function (cfg) {

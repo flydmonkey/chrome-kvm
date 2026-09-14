@@ -845,6 +845,53 @@ test("接收方向的帧解析", async function (t) {
         assert.strictEqual(ch._shiftFrame(), null, "不应有残留");
     });
 
+    // 下面这串是从真实 CH9329F 的 COM5 上抓的 GET_PARA_CFG 回包原样。
+    // 注意 LEN 字段写的是 0x32(50)，但数据区实际有 65 字节，校验和 0x25 落在
+    // 第 71 个字节上。按 6+LEN 死算帧尾会取到 0x00，整帧被误判成坏帧丢掉。
+    const CH9329F_PARA_REPLY = [
+        0x57, 0xAB, 0x00, 0x88, 0x32,
+        0x80, 0x80, 0x00, 0x00, 0x00, 0x25, 0x80, 0x08, 0x00, 0x00, 0x03, 0x86,
+        0x1A, 0x2A, 0xE1, 0x00, 0x00, 0x00, 0x01, 0x00, 0x0D,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x25
+    ];
+
+    await t.test("LEN 少报时按真正的校验和定帧尾（CH9329F 实测回包）", function () {
+        assert.strictEqual(CH9329F_PARA_REPLY.length, 71, "抓包就是 71 字节，不是 6+50");
+        ch._rxBuffer = new Uint8Array(CH9329F_PARA_REPLY);
+        const frame = ch._shiftFrame();
+        assert.ok(frame, "这一帧必须能解析出来，否则就是当前的报错现场");
+        assert.strictEqual(frame.cmd, 0x88);
+        assert.strictEqual(frame.data.length, 65, "数据区是实际收到的 65 字节");
+        assert.strictEqual(ch._shiftFrame(), null, "不应有残留");
+    });
+
+    await t.test("这种回包分两次到达也能拼起来", function () {
+        ch._rxBuffer = new Uint8Array(0);
+        // 第一块正好停在「按 LEN 算的帧尾」处，最容易被误判成坏帧
+        ch._appendRx(new Uint8Array(CH9329F_PARA_REPLY.slice(0, 56)));
+        assert.strictEqual(ch._shiftFrame(), null, "还没收全，得留着等后续");
+        ch._appendRx(new Uint8Array(CH9329F_PARA_REPLY.slice(56)));
+        const frame = ch._shiftFrame();
+        assert.ok(frame, "补齐后要能解析出来");
+        assert.strictEqual(frame.cmd, 0x88);
+        assert.strictEqual(frame.data.length, 65);
+    });
+
+    await t.test("多回的补零不会混进配置里", async function () {
+        const {ch: fresh} = newChip({baudRate: 9600});
+        fresh._rxBuffer = new Uint8Array(0);
+        fresh._appendRx(new Uint8Array(CH9329F_PARA_REPLY));
+        const frame = fresh._shiftFrame();
+        // getParaCfg 只取前 50 字节，写回芯片时才不会超出协议规定的长度
+        assert.strictEqual(frame.data.slice(0, 50).length, 50);
+        assert.strictEqual(fresh.readParaBaudRate(frame.data.slice(0, 50)), 9600,
+            "前 50 字节里的波特率仍要能正确读出");
+    });
+
     await t.test("分两次到达的帧能拼起来", function () {
         ch._rxBuffer = new Uint8Array(0);
         ch._appendRx(new Uint8Array([0x57, 0xAB, 0x00]));
