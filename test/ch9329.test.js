@@ -249,6 +249,72 @@ test("每条命令都等芯片应答", async function (t) {
     });
 });
 
+test("相对位移排队时累加而不是覆盖", async function (t) {
+    function relativeChip() {
+        const chip = createFakeChip();
+        return {chip: chip, ch: new Ch9329(chip.writer, false, chip.reader)};
+    }
+
+    function sentDelta(chip) {
+        return framesOf(chip, 0x05).reduce(function (sum, bytes) {
+            // 帧：57 AB 00 05 05 01 按键 dx dy 滚轮 SUM，dx/dy 是补码
+            sum.x += (bytes[7] << 24) >> 24;
+            sum.y += (bytes[8] << 24) >> 24;
+            return sum;
+        }, {x: 0, y: 0});
+    }
+
+    await t.test("连续的小位移一点不少地送出去", async function () {
+        const {chip, ch} = relativeChip();
+        for (let i = 0; i < 10; i++) {
+            ch.mouseMoveBy(10, -3);
+        }
+        await drain(ch);
+        assert.deepStrictEqual(sentDelta(chip), {x: 100, y: -30});
+        assert.ok(framesOf(chip, 0x05).length < 10, "排队期间应当合并成更少的包");
+    });
+
+    await t.test("合并后超过单包上限时拆开发，总量不变", async function () {
+        const {chip, ch} = relativeChip();
+        for (let i = 0; i < 30; i++) {
+            ch.mouseMoveBy(100, 0);
+        }
+        await drain(ch);
+        assert.deepStrictEqual(sentDelta(chip), {x: 3000, y: 0});
+        framesOf(chip, 0x05).forEach(function (bytes) {
+            const dx = (bytes[7] << 24) >> 24;
+            assert.ok(dx >= -127 && dx <= 127, "单包不能超过 ±127，实际 " + dx);
+        });
+    });
+
+    await t.test("点击之后的移动不会并到点击之前那一包里", async function () {
+        const {chip, ch} = relativeChip();
+        ch.mouseMoveBy(5, 0);        // 立刻发出
+        ch.mouseMoveBy(5, 0);        // 排队等着
+        ch.write(ch.relativePacket(0x01, 0, 0, 0));   // 按下左键
+        ch.mouseMoveBy(7, 0);        // 这一段必须在按下之后
+        await drain(ch);
+        const frames = framesOf(chip, 0x05);
+        const pressAt = frames.findIndex(function (bytes) { return bytes[6] === 0x01; });
+        const laterAt = frames.findIndex(function (bytes) { return bytes[7] === 7; });
+        assert.ok(pressAt !== -1 && laterAt !== -1, "两个包都得发出去");
+        assert.ok(laterAt > pressAt, "按下之后的位移被提前到了按下之前");
+        assert.deepStrictEqual(sentDelta(chip), {x: 17, y: 0});
+    });
+
+    await t.test("被合并的次数单独统计，不算丢弃", async function () {
+        const {ch} = relativeChip();
+        ch.resetMoveStats();
+        for (let i = 0; i < 5; i++) {
+            ch.mouseMoveBy(3, 0);
+        }
+        await drain(ch);
+        const report = ch.reportMoveStats();
+        assert.strictEqual(report["被合并丢弃"], 0, "相对位移是累加进去的，没有丢");
+        assert.ok(report["相对位移合并次数"] > 0);
+    });
+});
+
 test("不等应答时要留出包间隔", async function (t) {
     // 协议：芯片超过 3ms 没收到下一个字节才认为本包结束。等应答时这个间隔
     // 天然存在，不等应答时如果连发，芯片会把两包粘成一包。
@@ -957,7 +1023,8 @@ test("移动包统计", async function (t) {
         ch.sendAbsolutePacket(0x00, 0x00, true);
         ch.sendAbsolutePacket(0x00, 0x00, true);
         ch.sendAbsolutePacket(0x00, 0x00, true);
-        await ch.sendAbsolutePacket(0x00, 0x00, true);
+        ch.sendAbsolutePacket(0x00, 0x00, true);
+        await drain(ch);
         const report = ch.reportMoveStats();
         assert.strictEqual(report["提交包数"], 4);
         assert.ok(report["实际发出包数"] > 0, "至少要发出去一个");

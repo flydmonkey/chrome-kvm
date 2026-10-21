@@ -8,12 +8,16 @@ function Ch9329(writer, mouseAbsolute, reader) {
     this._queueRunning = false;
     this._movePending = null;
     this._moveQueued = false;
-    // 移动包的实测统计。位移会从两个地方丢：一是 writeMove 的合并（有包在路上时
-    // 后来的移动只覆盖不排队），二是相对模式单包 ±127 的截断。两者各占多少只能
-    // 实测，不能拍脑袋，所以分开记
+    // 相对模式还在队列里等着发的那份位移 {buttons, dx, dy}。新的位移加进来而不是
+    // 覆盖它：绝对坐标只要最新的就行，相对位移是累加的，覆盖掉一包就少走一段
+    this._relPending = null;
+    // 移动包的实测统计。绝对模式下排队时后来的坐标会覆盖前一个（只要最新位置），
+    // 相对模式下则是累加合并，位移不丢。两者分开记，才看得出串口跟不跟得上
     this.moveStats = {
         submitted: 0,    // 交给发送队列的包数
         sent: 0,         // 真正发到线上的包数
+        dropped: 0,      // 绝对模式下被更新的坐标覆盖掉的包数
+        merged: 0,       // 相对模式下并进排队中那一包的次数（位移不丢）
         split: 0,        // 因为超过 ±127 被拆成多包的移动次数
         carried: 0,      // 连发上限都没兜住、余量推迟到下一帧的次数
         maxWanted: 0,    // 单轴请求过的最大位移
@@ -375,12 +379,18 @@ function Ch9329(writer, mouseAbsolute, reader) {
 
     // 按键等关键包：允许一次重发
     this.write = function (packet) {
+        // 之后的相对位移不能再并进排在这个包前面的那份里，否则点击之后的
+        // 移动会抢在点击之前发出去，点击就落到了别处
+        this._relPending = null;
         return this._enqueue({packet: packet, retries: 1});
     }
 
-    // 移动包：队列中只保留最新一个，避免 9600bps 下淹没按键包
+    // 绝对坐标移动包：队列中只保留最新一个，避免 9600bps 下淹没按键包
     this.writeMove = function (packet) {
         this.moveStats.submitted++;
+        if (this._moveQueued) {
+            this.moveStats.dropped++;
+        }
         this._movePending = packet;
         if (this._moveQueued) {
             return Promise.resolve(null);
@@ -406,9 +416,51 @@ function Ch9329(writer, mouseAbsolute, reader) {
         return this._enqueue({packet: packet, retries: 0, isMove: true});
     }
 
+    // 相对位移：队列里已经有一份同样按键状态的位移在等着时，直接加进去。
+    // 鼠标事件比串口快时（低波特率、或者按硬件回报率取事件），这样既不会
+    // 把串口淹没，也不会像覆盖那样丢掉位移
+    this.writeRelativeMove = function (buttons, dx, dy) {
+        this.moveStats.submitted++;
+        let pending = this._relPending;
+        if (pending && pending.buttons === buttons) {
+            pending.dx += dx;
+            pending.dy += dy;
+            this.moveStats.merged++;
+            return Promise.resolve(null);
+        }
+        pending = {buttons: buttons, dx: dx, dy: dy};
+        this._relPending = pending;
+        return this._enqueue(this._relativeJob(pending));
+    }
+
+    this._relativeJob = function (pending) {
+        let self = this;
+        return {
+            retries: 0,
+            isMove: true,
+            build: function () {
+                let sx = self.clamp(pending.dx, -127, 127);
+                let sy = self.clamp(pending.dy, -127, 127);
+                pending.dx -= sx;
+                pending.dy -= sy;
+                if (pending.dx !== 0 || pending.dy !== 0) {
+                    // 合并后一包装不下：余量插到队首紧接着发。排到队尾的话会
+                    // 落到之后才按下的键后面，移动和点击的先后就乱了
+                    self._queue.unshift(self._relativeJob(pending));
+                } else if (self._relPending === pending) {
+                    // 已经发出去了，之后的位移得另起一份重新排队
+                    self._relPending = null;
+                }
+                return self.relativePacket(pending.buttons, sx, sy, 0);
+            }
+        };
+    }
+
     this.resetMoveStats = function () {
         this.moveStats.submitted = 0;
         this.moveStats.sent = 0;
+        this.moveStats.dropped = 0;
+        this.moveStats.merged = 0;
         this.moveStats.split = 0;
         this.moveStats.carried = 0;
         this.moveStats.maxWanted = 0;
@@ -429,8 +481,9 @@ function Ch9329(writer, mouseAbsolute, reader) {
             "统计时长(秒)": round(seconds, 1),
             "提交包数": s.submitted,
             "实际发出包数": s.sent,
-            "被合并丢弃": s.submitted - s.sent,
-            "丢弃占比": s.submitted ? round((s.submitted - s.sent) / s.submitted * 100, 1) + "%" : "-",
+            "被合并丢弃": s.dropped,
+            "丢弃占比": s.submitted ? round(s.dropped / s.submitted * 100, 1) + "%" : "-",
+            "相对位移合并次数": s.merged,
             "每秒发出包数": seconds > 0 ? round(s.sent / seconds, 1) : 0,
             "单包平均耗时(ms)": s.sent ? round(s.totalWaitMs / s.sent, 2) : 0,
             "单包最慢(ms)": s.maxWaitMs,
@@ -615,6 +668,7 @@ function Ch9329(writer, mouseAbsolute, reader) {
         this._transportBroken = true;
         let pending = this._queue;
         this._queue = [];
+        this._relPending = null;
         for (let i = 0; i < pending.length; i++) {
             if (pending[i].resolve) {
                 pending[i].resolve(null);
@@ -624,6 +678,7 @@ function Ch9329(writer, mouseAbsolute, reader) {
 
     this.dispose = async function () {
         this._queue = [];
+        this._relPending = null;
         try {
             if (reader) {
                 await reader.cancel();
@@ -951,10 +1006,11 @@ function Ch9329(writer, mouseAbsolute, reader) {
             }
             leftX -= sx;
             leftY -= sy;
-            // 只有单包时才走合并通道（有包在路上就只留最新的那个）。拆包连发
-            // 必须逐个排队：合并只会留下最后一段，前面几段的位移就没了
-            let packet = this.relativePacket(this.clicked.command, sx, sy, 0);
-            last = burst === 1 ? this.writeMove(packet) : this.writeMoveNow(packet);
+            // 只有单包时才走合并通道（排队时累加进同一包）。拆包连发逐个排队，
+            // 否则几段会被重新攒成一大包，又得在发送时再拆一遍
+            last = burst === 1
+                ? this.writeRelativeMove(this.clicked.command, sx, sy)
+                : this.writeMoveNow(this.relativePacket(this.clicked.command, sx, sy, 0));
         }
 
         this._relCarryX = leftX;
