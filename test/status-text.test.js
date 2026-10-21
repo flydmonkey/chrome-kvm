@@ -41,10 +41,26 @@ test("视频状态文案", async (t) => {
         assert.deepStrictEqual(status.lines, ["打开视频失败", "NotReadableError", "点击重试"]);
     });
 
-    await t.test("轨道 ended 说明采集卡可能被拔了", () => {
+    await t.test("轨道 ended 说明采集卡可能被拔了，并告诉用户插回会自动恢复", () => {
         let status = StatusText.describeVideo(liveState({track: fakeTrack({readyState: "ended"})}));
         assert.strictEqual(status.level, "error");
         assert.ok(status.lines.indexOf("采集卡可能被拔掉了") !== -1);
+        assert.ok(status.lines.indexOf("插回后会自动恢复") !== -1);
+    });
+
+    await t.test("没选视频设备时是灰的，指向设置页而不是让人点重试", () => {
+        let status = StatusText.describeVideo({unconfigured: true, track: null});
+        assert.strictEqual(status.level, "idle");
+        assert.deepStrictEqual(status.lines, ["未选择视频设备", "到设置页选择采集卡"]);
+    });
+
+    await t.test("没选设备的提示优先于残留的错误", () => {
+        let status = StatusText.describeVideo({
+            unconfigured: true,
+            errorLines: ["打开视频失败", "x", "点击重试"],
+            track: null
+        });
+        assert.strictEqual(status.level, "idle");
     });
 
     await t.test("一切正常时是绿的，显示设备名、分辨率和帧率", () => {

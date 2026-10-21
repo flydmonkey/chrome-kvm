@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html>
-<head lang="zh" title="winkvm">
+<html lang="zh-CN">
+<head>
     <meta charset="utf-8">
     <title>Chrome KVM</title>
     <meta name="description" content="Chrome KVM">
@@ -203,6 +203,92 @@
     .floating-toolbar.hidden .toggle-button .tooltip {
         left: calc(100% + 8px);
     }
+
+    /* 顶部提示条。替代 alert：alert 会抢走焦点，触发 blur 把正在按的键全松掉，
+       启动时还可能一连弹好几个把画面挡住 */
+    .notice-stack {
+        position: fixed;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        max-width: min(560px, calc(100vw - 32px));
+        z-index: 1100;
+        pointer-events: none;
+    }
+
+    .notice {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 12px 10px 14px;
+        background-color: rgba(24, 24, 27, 0.92);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-left: 3px solid #a1a1aa;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        color: #f4f4f5;
+        font: 13px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+        /* 串口错误自带多行「详细信息」，换行要保留 */
+        white-space: pre-line;
+        word-break: break-word;
+        cursor: default;
+        pointer-events: auto;
+    }
+
+    .notice-warn {
+        border-left-color: #ffc107;
+    }
+
+    .notice-error {
+        border-left-color: #ff5252;
+    }
+
+    .notice-body {
+        flex: 1;
+        max-height: 40vh;
+        overflow-y: auto;
+    }
+
+    .notice a,
+    .notice-action {
+        color: #60a5fa;
+        margin-left: 6px;
+        white-space: nowrap;
+    }
+
+    .notice-action {
+        padding: 0;
+        border: none;
+        background: none;
+        font: inherit;
+        text-decoration: underline;
+        cursor: pointer;
+    }
+
+    .notice-close {
+        flex: none;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: none;
+        border-radius: 4px;
+        background: transparent;
+        color: #a1a1aa;
+        font-size: 16px;
+        line-height: 22px;
+        cursor: pointer;
+    }
+
+    .notice-close:hover {
+        background-color: rgba(255, 255, 255, 0.12);
+        color: #f4f4f5;
+    }
 </style>
 
 <body>
@@ -210,6 +296,7 @@
     <video id="video" playsinline autoplay style="width: 100%;height:100%;cursor: none"></video>
     <button id="authSerial" style="display: none"></button>
 </div>
+<div class="notice-stack" id="noticeStack" role="status" aria-live="polite"></div>
 <!-- 图标用内联 SVG：emoji 在各系统上渲染差异太大，且语义常对不上 -->
 <div class="floating-toolbar hidden">
     <button onclick="refreshVideoStatus()" id="videoStatusButton" class="status-indicator status-idle"
@@ -338,6 +425,7 @@
 </div>
 <script src="settings-store.js"></script>
 <script src="status-text.js"></script>
+<script src="page-logic.js"></script>
 <script src="ch9329.js"></script>
 <script src="kvm-page.js"></script>
 </body>

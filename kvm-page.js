@@ -1,9 +1,7 @@
 // 控制页的页面逻辑：视频流、串口连接、键鼠事件转发、工具栏状态。
-// 协议细节在 ch9329.js，配置读写在 settings-store.js。
+// 协议细节在 ch9329.js，配置读写在 settings-store.js，可单测的判断在 page-logic.js。
 let videoElement = document.getElementById("video");
 let containerElement = document.getElementById("container");
-let globalWidth = 1920;
-let globalHeight = 1080;
 let ch;
 
 function start(devices) {
@@ -13,99 +11,208 @@ function start(devices) {
         return;
     }
 
-    let video = settings.video;
-    if (!settings.video || !settings.video.deviceId) {
-        return;
-    }
-    let audio = undefined;
-    if (settings.audio && settings.audio.deviceId) {
-        audio = {
-            deviceId: {exact: settings.audio.deviceId},
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false
-        }
-    }
-
     // 相对模式的位移倍数。绝对模式用不到，设了也不起作用
     Ch9329.RELATIVE_SPEED = SettingsStore.normalizeRelativeSpeed(settings.relativeSpeed);
 
-    let screen = settings.resolution;
-    let width = globalWidth;
-    let height = globalHeight;
-    if (screen && screen.width && screen.height) {
-        width = screen.width;
-        height = screen.height;
-    }
-
-    lastMediaArgs = {videoDeviceId: video.deviceId, audio: audio, width: width, height: height};
-    startVideo(devices, false);
+    // 没选采集卡不该连键鼠一起放弃：只靠键鼠盲操（比如进 BIOS 按几个键）也是正经用法
+    applyMediaSettings(PageLogic.mediaArgsFrom(settings, SettingsStore), devices, false);
 
     if (settings.usb && settings.usb.deviceId) {
         openSerial(settings.usb.deviceId, settings.mouseClickMode);
     }
+    bindSettingsSync(settings);
+}
+
+function applyMediaSettings(args, onFirstStream, quiet) {
+    if (!args) {
+        lastMediaArgs = null;
+        stopStream(videoElement.srcObject);
+        videoElement.srcObject = null;
+        videoTrack = null;
+        videoErrorLines = null;
+        videoUnconfigured = true;
+        renderVideoStatus();
+        noticeVideoUnconfigured();
+        return;
+    }
+    videoUnconfigured = false;
+    lastMediaArgs = args;
+    bindVideoLifecycle();
+    if (videoOpening) {
+        // 正在开的那一路用的是旧参数，等它结束再按新参数重开
+        videoRestartPending = true;
+        return;
+    }
+    startVideo(onFirstStream, quiet);
 }
 
 let lastMediaArgs = null;
 let videoTrack = null;
 let videoErrorLines = null;
+let videoUnconfigured = false;
+// 插拔时 devicechange 和用户点图标可能撞在一起，同时开两次会互相抢设备
+let videoOpening = false;
+let videoRestartPending = false;
+// 记下是不是从「被拔掉」恢复的，恢复后要告诉用户一声
+let videoDropped = false;
 
 function startVideo(onFirstStream, quiet) {
-    if (!lastMediaArgs) {
+    if (!lastMediaArgs || videoOpening) {
         return;
     }
+    videoOpening = true;
     let args = lastMediaArgs;
     videoErrorLines = null;
+    // 走到这里旧流已经死了，不停掉的话音频轨道还会占着设备
+    stopStream(videoElement.srcObject);
     setVideoStatus("warn", ["正在打开视频…"]);
-    openMedia(args.videoDeviceId, args.audio, args.width, args.height)
+    openMedia(args)
         .then(stream => {
+            videoOpening = false;
+            if (videoRestartPending || lastMediaArgs !== args) {
+                // 打开期间设置变了：这一路已经过时，停掉按新参数重开
+                videoRestartPending = false;
+                stopStream(stream);
+                if (lastMediaArgs) {
+                    startVideo(null, true);
+                }
+                return;
+            }
             videoElement.srcObject = stream;
             bindVideoTrack(stream);
+            if (videoDropped) {
+                videoDropped = false;
+                showNotice("采集卡已恢复，画面重新接上了。", {key: "video"});
+            } else {
+                dismissNotice("video");
+            }
             if (typeof onFirstStream === "function") {
                 onFirstStream();
             }
         })
         .catch(function (e) {
-            let message = e && e.message ? e.message : String(e);
+            videoOpening = false;
+            if (videoRestartPending || lastMediaArgs !== args) {
+                videoRestartPending = false;
+                if (lastMediaArgs) {
+                    startVideo(null, quiet);
+                }
+                return;
+            }
+            let message = PageLogic.describeMediaOpenError(e);
             videoTrack = null;
             videoErrorLines = ["打开视频失败", message, "点击重试"];
             renderVideoStatus();
             if (!quiet) {
-                alert(message);
+                showNotice("打开视频失败：" + message, {level: "error", key: "video"});
             }
         });
+}
+
+function stopStream(stream) {
+    if (!stream || !stream.getTracks) {
+        return;
+    }
+    stream.getTracks().forEach(function (track) {
+        track.stop();
+    });
 }
 
 // 采集卡被拔掉或没信号时轨道会 ended/muted，光看 srcObject 是看不出来的
 function bindVideoTrack(stream) {
     let tracks = stream.getVideoTracks();
-    videoTrack = tracks.length ? tracks[0] : null;
+    let track = tracks.length ? tracks[0] : null;
+    videoTrack = track;
     // 拿到轨道就说明上一次的失败已经过去了，否则错误会一直盖住正常状态
     videoErrorLines = null;
-    if (videoTrack) {
-        videoTrack.addEventListener("ended", renderVideoStatus);
-        videoTrack.addEventListener("mute", renderVideoStatus);
-        videoTrack.addEventListener("unmute", renderVideoStatus);
+    if (track) {
+        track.addEventListener("ended", function () {
+            // 重开之后旧轨道的事件可能才姗姗来迟，那时它已经不是当前轨道了
+            if (track === videoTrack) {
+                videoDropped = true;
+                showNotice("采集卡已断开，插回后会自动恢复画面。", {level: "warn", key: "video", timeout: 0});
+            }
+            renderVideoStatus();
+        });
+        track.addEventListener("mute", renderVideoStatus);
+        track.addEventListener("unmute", renderVideoStatus);
     }
     renderVideoStatus();
 }
 
-function openMedia(videoDeviceId, audio, width, height) {
+function videoBroken() {
+    return !!videoErrorLines || !videoTrack || videoTrack.readyState === "ended";
+}
+
+// 轨道一旦 ended 就不会自己复活，采集卡插回来也得重新 getUserMedia。
+// 串口那边靠 navigator.serial 的 connect 事件，视频对应的是 devicechange。
+let deviceChangeTimer = null;
+
+function bindVideoLifecycle() {
+    let media = navigator.mediaDevices;
+    if (!media || !media.addEventListener || window.__chromeKvmVideoBound) {
+        return;
+    }
+    window.__chromeKvmVideoBound = true;
+    media.addEventListener("devicechange", function () {
+        // 一次插拔会连着触发好几次（视频、音频各算一个设备），等列表稳定了再看
+        clearTimeout(deviceChangeTimer);
+        deviceChangeTimer = setTimeout(reopenVideoIfBack, 800);
+    });
+}
+
+function reopenVideoIfBack() {
+    if (!lastMediaArgs || videoOpening || !videoBroken()) {
+        return;
+    }
+    let wanted = lastMediaArgs.videoDeviceId;
+    navigator.mediaDevices.enumerateDevices()
+        .then(function (devices) {
+            let back = devices.some(function (device) {
+                return device.kind === "videoinput" && device.deviceId === wanted;
+            });
+            // 别的设备插拔也会触发 devicechange，采集卡不在就别去碰它，免得刷出一串失败
+            if (back) {
+                startVideo(null, true);
+            }
+        })
+        .catch(function (e) {
+            console.warn("枚举媒体设备失败", e);
+        });
+}
+
+function noticeVideoUnconfigured() {
+    showNotice("还没有选择视频采集卡，所以没有画面。键鼠不受影响。", {
+        level: "warn",
+        key: "video",
+        timeout: 0,
+        link: {text: "去设置", href: "settings.html"}
+    });
+}
+
+function openMedia(args) {
+    let videoDeviceId = args.videoDeviceId;
+    let audio = args.audio;
+    // 不写帧率时 Chrome 按 30fps 要，支持 60 的采集卡也被压在 30。用 ideal
+    // 而不是 exact：采集卡在这个分辨率下没有 60 时，浏览器会优先保住分辨率
+    let frameRate = args.frameRate ? {ideal: args.frameRate} : undefined;
     // exact 分辨率极易 Overconstrained；按 ideal → 放宽 → 仅设备 回退
     let attempts = [
         {
             audio: audio,
             video: {
                 deviceId: {exact: videoDeviceId},
-                width: {ideal: width},
-                height: {ideal: height}
+                width: {ideal: args.width},
+                height: {ideal: args.height},
+                frameRate: frameRate
             }
         },
         {
             audio: audio,
             video: {
                 deviceId: {exact: videoDeviceId},
-                width: {ideal: width}
+                width: {ideal: args.width},
+                frameRate: frameRate
             }
         },
         {
@@ -135,6 +242,107 @@ let pointerLockRejected = false;
 let activePort = null;
 let lastSerialArgs = null;
 let serialLost = false;
+// 每次发起连接加一。连接要花时间（探测波特率），期间设置再变就会有两次连接
+// 同时在跑，晚到的旧连接靠它认出自己已经过时
+let serialGeneration = 0;
+
+// 顶部提示条，用来代替 alert。alert 会抢焦点触发 blur，把被控端上正按着的键
+// 全部松开；启动时视频、串口各弹一个还会一个接一个挡住画面。
+// options: {level: "info"|"warn"|"error", key, timeout, closable,
+//           link: {text, href}, action: {text, onClick}}
+// 同一个 key 只保留最新一条，重连之类反复出现的提示不会越堆越多。
+// error 默认不自动消失：里面常带排错用的详细信息，看一半没了等于白给。
+// 返回 {setMessage, remove}，进度类的提示靠它原地改字，不用反复重建。
+function showNotice(message, options) {
+    options = options || {};
+    let level = options.level || "info";
+    let stack = document.getElementById("noticeStack");
+    if (!stack) {
+        console.warn(message);
+        return {setMessage: function () {}, remove: function () {}};
+    }
+    if (options.key) {
+        dismissNotice(options.key);
+    }
+
+    let notice = document.createElement("div");
+    notice.className = "notice notice-" + level;
+    if (options.key) {
+        notice.dataset.key = options.key;
+    }
+
+    let body = document.createElement("div");
+    body.className = "notice-body";
+    let text = document.createElement("span");
+    text.textContent = message;
+    body.appendChild(text);
+    if (options.link) {
+        let link = document.createElement("a");
+        link.href = options.link.href;
+        link.textContent = options.link.text;
+        body.appendChild(link);
+    }
+    if (options.action) {
+        let action = document.createElement("button");
+        action.className = "notice-action";
+        action.type = "button";
+        action.textContent = options.action.text;
+        action.addEventListener("click", options.action.onClick);
+        body.appendChild(action);
+    }
+    notice.appendChild(body);
+
+    if (options.closable !== false) {
+        let close = document.createElement("button");
+        close.className = "notice-close";
+        close.type = "button";
+        close.setAttribute("aria-label", "关闭提示");
+        close.textContent = "×";
+        close.addEventListener("click", function () {
+            notice.remove();
+        });
+        notice.appendChild(close);
+    }
+
+    stack.appendChild(notice);
+
+    let timeout = PageLogic.noticeTimeout(level, options.timeout);
+    if (timeout > 0) {
+        setTimeout(function () {
+            notice.remove();
+        }, timeout);
+    }
+    return {
+        setMessage: function (next) {
+            text.textContent = next;
+        },
+        remove: function () {
+            notice.remove();
+        }
+    };
+}
+
+function dismissNotice(key) {
+    let stack = document.getElementById("noticeStack");
+    if (!stack) {
+        return;
+    }
+    stack.querySelectorAll(".notice").forEach(function (notice) {
+        if (notice.dataset.key === key) {
+            notice.remove();
+        }
+    });
+}
+
+// 在提示里滚动查看详细信息时，别让 document 上的滚轮监听把它当成被控端滚轮发出去
+(function guardNoticeWheel() {
+    let stack = document.getElementById("noticeStack");
+    if (stack) {
+        stack.addEventListener("wheel", function (event) {
+            event.stopPropagation();
+        }, {passive: true});
+    }
+})();
 
 function applyStatus(buttonId, tooltipId, level, lines) {
     let button = document.querySelector(buttonId);
@@ -158,6 +366,7 @@ function setVideoStatus(level, lines) {
 
 function renderVideoStatus() {
     let status = StatusText.describeVideo({
+        unconfigured: videoUnconfigured,
         errorLines: videoErrorLines,
         track: videoTrack,
         videoWidth: videoElement.videoWidth,
@@ -167,9 +376,12 @@ function renderVideoStatus() {
 }
 
 function refreshVideoStatus() {
+    if (videoUnconfigured) {
+        noticeVideoUnconfigured();
+        return;
+    }
     // 已经断了就直接重开，正常的话只是刷新读数
-    let broken = !!videoErrorLines || !videoTrack || videoTrack.readyState === "ended";
-    if (broken) {
+    if (videoBroken()) {
         startVideo(null, true);
         return;
     }
@@ -259,46 +471,23 @@ async function releaseConnection(candidate) {
     }
 }
 
-// 逐个试匹配到的端口：优先用能打开又能应答的，都不应答时退回仅能打开的那个
-// （那时状态栏会照实显示「芯片无应答」）。全都打不开才把错误抛出去。
-async function connectFirstWorking(candidates, mouseAbsolute) {
-    let fallback = null;
-    let lastError = null;
-    for (let i = 0; i < candidates.length; i++) {
-        let candidate;
-        try {
-            candidate = {
-                port: candidates[i],
-                connection: await Ch9329.connect(candidates[i], candidateBaudRates(), mouseAbsolute)
-            };
-        } catch (e) {
-            lastError = e;
-            continue;
-        }
-        if (candidate.connection.info) {
-            if (fallback) {
-                await releaseConnection(fallback);
-            }
-            return candidate;
-        }
-        if (fallback) {
-            await releaseConnection(candidate);
-        } else {
-            fallback = candidate;
-        }
-    }
-    if (fallback) {
-        return fallback;
-    }
-    if (lastError) {
-        throw lastError;
-    }
-    return null;
+function connectFirstWorking(candidates, mouseAbsolute) {
+    return PageLogic.connectFirstWorking(candidates, function (port) {
+        return Ch9329.connect(port, candidateBaudRates(), mouseAbsolute);
+    }, releaseConnection);
 }
 
 function openSerial(deviceId, mouseClickMode) {
     lastSerialArgs = {deviceId: deviceId, mouseClickMode: mouseClickMode};
+    if (!navigator.serial) {
+        showNotice("当前浏览器不支持 Web Serial，键鼠无法使用。请用桌面版 Chrome 或 Edge 打开。", {
+            level: "error",
+            key: "serial"
+        });
+        return;
+    }
     bindSerialLifecycle();
+    let generation = ++serialGeneration;
     navigator.serial.getPorts()
         .then(async function (ports) {
             let candidates = SettingsStore.pickSerialPorts(ports, deviceId);
@@ -308,12 +497,21 @@ function openSerial(deviceId, mouseClickMode) {
                     renderStatus(null);
                     return;
                 }
-                alert("未检测到所选串口设备。请到设置页重新授权并选择正确的 CH9329 端口。");
+                showNotice("未检测到所选串口设备。请到设置页重新授权并选择正确的 CH9329 端口。", {
+                    level: "error",
+                    key: "serial",
+                    link: {text: "去设置", href: "settings.html"}
+                });
                 return;
             }
             let mouseAbsolute = !mouseClickMode || mouseClickMode === "absolute";
             // 芯片实际波特率以探测结果为准，设置里的值只作为首选，避免配置不同步就连不上
             let candidate = await connectFirstWorking(candidates, mouseAbsolute);
+            if (generation !== serialGeneration) {
+                // 连接期间设置又变了，已经有更新的一次在连。串口是独占的，赶紧让出来
+                await releaseConnection(candidate);
+                return;
+            }
             let connection = candidate.connection;
             ch = connection.ch;
             ch.onTransportError = handleSerialLost;
@@ -322,6 +520,7 @@ function openSerial(deviceId, mouseClickMode) {
             currentBaudRate = connection.baudRate;
             currentBaudProbed = connection.probed !== false;
             open();
+            dismissNotice("serial");
             let info = connection.info;
             renderStatus(info);
             if (!info) {
@@ -331,7 +530,10 @@ function openSerial(deviceId, mouseClickMode) {
             console.log("CH9329", info, "baudRate=" + connection.baudRate);
             SettingsStore.patch({baudRate: connection.baudRate});
             if (!info.usbConnected) {
-                alert("CH9329 的 USB 未被被控端枚举，请检查接到被控机的 USB 线。");
+                showNotice("CH9329 的 USB 未被被控端枚举，请检查接到被控机的 USB 线。", {
+                    level: "warn",
+                    key: "serial"
+                });
             }
         })
         .catch(function (e) {
@@ -340,8 +542,82 @@ function openSerial(deviceId, mouseClickMode) {
                 renderStatus(null);
                 return;
             }
-            alert(e && e.message ? e.message : String(e));
+            showNotice(e && e.message ? e.message : String(e), {level: "error", key: "serial"});
         });
+}
+
+// 换了串口设备或鼠标模式时要重连：鼠标模式是建连接时定下的，中途改不了
+async function restartSerial(settings) {
+    let oldCh = ch;
+    let oldPort = activePort;
+    ch = null;
+    activePort = null;
+    serialLost = false;
+    pasteCancelled = true;
+    if (document.pointerLockElement) {
+        document.exitPointerLock();
+    }
+    if (oldCh) {
+        // 旧连接关掉时写入会失败，别让它把新连接的状态标成「已断开」
+        oldCh.onTransportError = null;
+        try {
+            // 释放包排在队列里，等它们发完再关；芯片不应答时也最多等 300ms
+            oldCh.releaseAllKeys();
+            await Promise.race([
+                oldCh.forceReleaseAllMouse(),
+                new Promise(function (resolve) {
+                    setTimeout(resolve, 300);
+                })
+            ]);
+            await oldCh.dispose();
+        } catch (e) {
+            console.warn("关闭旧的键鼠连接失败", e);
+        }
+    }
+    if (oldPort) {
+        try {
+            await oldPort.close();
+        } catch (e) {
+            console.warn("关闭旧串口失败", e);
+        }
+    }
+    if (settings.usb && settings.usb.deviceId) {
+        openSerial(settings.usb.deviceId, settings.mouseClickMode);
+    } else {
+        lastSerialArgs = null;
+        serialGeneration++;
+        renderStatus(null);
+    }
+}
+
+// 在设置页点保存后，控制页不用再手动刷新。storage 事件只在别的标签页改了
+// localStorage 时触发，正好对应设置页保存；本页自己 patch 波特率不会触发
+function bindSettingsSync(initial) {
+    let applied = initial;
+    window.addEventListener('storage', function (event) {
+        if (event.key !== SettingsStore.KEY) {
+            return;
+        }
+        let next = SettingsStore.read();
+        if (!next) {
+            return;
+        }
+        let previous = applied;
+        applied = next;
+        let changes = PageLogic.settingsChanges(previous, next, Ch9329.RELATIVE_SPEED, SettingsStore);
+        if (changes.relativeSpeed !== null) {
+            Ch9329.RELATIVE_SPEED = changes.relativeSpeed;
+        }
+        if (changes.media) {
+            applyMediaSettings(changes.mediaArgs, null, false);
+        }
+        if (changes.serial) {
+            restartSerial(next);
+        }
+        if (changes.labels.length) {
+            showNotice("设置已更新：" + changes.labels.join("、"), {key: "settings", timeout: 3000});
+        }
+    });
 }
 
 function open() {
@@ -353,7 +629,10 @@ function open() {
     videoElement.style.cursor = "none";
     document.addEventListener('keydown', (event) => {
         event.preventDefault()
-        if (!ch) {
+        // 按住不放时本机会连发 keydown，但被控端只要收到「按下」就会自己按
+        // 它的设置重复。再转发一遍只是重发同一份报告，低波特率下白白占串口。
+        // 粘贴期间用户的按键会和模拟敲键的报告互相覆盖，打出乱码，也先不转发
+        if (!ch || event.repeat || pasting) {
             return;
         }
         ch.keydown(event.code);
@@ -361,7 +640,7 @@ function open() {
 
     document.addEventListener('keyup', (event) => {
         event.preventDefault();
-        if (!ch) {
+        if (!ch || pasting) {
             return;
         }
         ch.keyup(event.code);
@@ -454,7 +733,12 @@ function open() {
         renderStatus(lastInfo);
     });
 
-    videoElement.addEventListener('mousemove', (event) => {
+    // mousemove 被浏览器对齐到画面刷新，一帧最多一次（实测间隔约 29ms），
+    // 手已经动了，位移还要等到下一帧才发出去。pointerrawupdate 按鼠标硬件的
+    // 回报率触发，能把这段等待省掉。事件密了也不怕：绝对坐标排队时只留最新
+    // 的，相对位移排队时累加，都不会淹没串口。只在安全上下文里有，没有就退回
+    const moveEvent = ('onpointerrawupdate' in window) ? 'pointerrawupdate' : 'mousemove';
+    videoElement.addEventListener(moveEvent, (event) => {
         if (!ch) {
             return;
         }
@@ -600,74 +884,175 @@ document.addEventListener('fullscreenchange', function () {
 
 renderFullscreenStatus();
 
-let mediaRecorder;
+let mediaRecorder = null;
+
+function setRecordingUi(recording) {
+    document.querySelector("#startRecordStatus").style.display = recording ? "none" : "flex";
+    document.querySelector("#stopRecordStatus").style.display = recording ? "flex" : "none";
+}
 
 function startRecord() {
-    document.querySelector("#startRecordStatus").style.display = "none";
-    document.querySelector("#stopRecordStatus").style.display = "flex";
-    if (mediaRecorder) {
-        mediaRecorder.stop();
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        return;
+    }
+    if (typeof MediaRecorder === "undefined") {
+        showNotice("当前浏览器不支持录制", {level: "error", key: "record"});
+        return;
     }
     const stream = videoElement.srcObject;
-
-    // 将MediaStream转换为Blob数据
-    mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm'
+    let live = stream && stream.getVideoTracks().some(function (track) {
+        return track.readyState === "live";
     });
+    // 没有画面时 new MediaRecorder 会抛错，而按钮之前已经切成了「停止」，
+    // 界面就卡在一个其实没在录的状态
+    if (!live) {
+        showNotice("没有画面可录，请先确认视频已经打开", {level: "warn", key: "record"});
+        return;
+    }
 
-    // 创建一个空数组来保存录制的Blob对象
+    let mimeType = PageLogic.pickRecordMimeType(
+        MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported.bind(MediaRecorder));
+    let recorder;
+    try {
+        recorder = new MediaRecorder(stream, mimeType ? {mimeType: mimeType} : undefined);
+    } catch (e) {
+        showNotice("无法开始录制：" + (e && e.message ? e.message : String(e)), {level: "error", key: "record"});
+        return;
+    }
     const chunks = [];
 
-    // 监听dataavailable事件来收集Blob数据
-    mediaRecorder.ondataavailable = event => {
+    recorder.ondataavailable = event => {
         if (event.data && event.data.size > 0) {
             chunks.push(event.data);
         }
     };
 
-    // 监听stop事件来处理录制完成后的操作
-    mediaRecorder.onstop = () => {
-        // 创建一个Blob URL来播放录制的视频
-        const blob = new Blob(chunks, {type: 'video/webm'});
+    recorder.onerror = event => {
+        let error = event && event.error;
+        showNotice("录制出错：" + (error && error.message ? error.message : "未知错误"), {
+            level: "error",
+            key: "record"
+        });
+    };
+
+    // 不只是点了停止才会走到这里：采集卡被拔掉、轨道全部结束时浏览器也会
+    // 自己停掉录制。所以按钮状态和下载都在这里收尾，而不是在 stopRecord 里
+    recorder.onstop = () => {
+        let interrupted = !recorder.manualStop;
+        if (mediaRecorder === recorder) {
+            mediaRecorder = null;
+        }
+        setRecordingUi(false);
+        if (chunks.length === 0) {
+            showNotice("录制没有收到任何画面，未生成文件", {level: "warn", key: "record"});
+            return;
+        }
+        const blob = new Blob(chunks, {type: recorder.mimeType || "video/webm"});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = StatusText.recordFileName();
         a.click();
-        URL.revokeObjectURL(url);
+        // 马上 revoke 的话，大文件的下载可能还没来得及读完这个 URL
+        setTimeout(function () {
+            URL.revokeObjectURL(url);
+        }, 60000);
+        if (interrupted) {
+            showNotice("采集中断，录制已自动停止，已录下的部分已经下载", {level: "warn", key: "record"});
+        }
     };
 
-    // 开始录制
-    mediaRecorder.start();
+    try {
+        // 每秒切一块：中途出问题时至少已经录下的部分还在
+        recorder.start(1000);
+    } catch (e) {
+        showNotice("无法开始录制：" + (e && e.message ? e.message : String(e)), {level: "error", key: "record"});
+        return;
+    }
+    mediaRecorder = recorder;
+    setRecordingUi(true);
 }
 
 function stopRecord() {
-    if (mediaRecorder) {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.manualStop = true;
         mediaRecorder.stop();
-    }
-
-    document.querySelector("#startRecordStatus").style.display = "flex";
-    document.querySelector("#stopRecordStatus").style.display = "none";
-}
-
-async function pasteText() {
-    if (!ch) {
-        alert("键鼠设备未连接");
         return;
     }
-    try {
-        let text = await navigator.clipboard.readText();
-        if (!text) {
-            alert("剪贴板为空");
-            return;
-        }
-        let result = await ch.typeText(text);
-        if (result.skipped > 0) {
-            alert("已粘贴 " + result.typed + " 个字符，跳过 " + result.skipped + " 个不支持字符（如中文）");
-        }
-    } catch (e) {
-        alert("读取剪贴板失败：请先允许剪贴板权限，或确认页面在安全上下文中打开");
+    setRecordingUi(false);
+}
+
+// 录像只存在内存里，刷新或关掉页面就全没了
+window.addEventListener('beforeunload', function (event) {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        event.preventDefault();
+        event.returnValue = "";
     }
+});
+
+// 粘贴是一个字一个字敲出去的，9600 波特率下一个字符约 40ms，长文本要敲好一阵。
+// 期间再点一次粘贴，两段文字会交错着敲出去，所以同一时间只允许一个。
+let pasting = false;
+let pasteCancelled = false;
+
+async function pasteText() {
+    if (pasting) {
+        pasteCancelled = true;
+        return;
+    }
+    if (!ch) {
+        showNotice("键鼠设备未连接", {level: "warn", key: "paste"});
+        return;
+    }
+    let text;
+    try {
+        text = await navigator.clipboard.readText();
+    } catch (e) {
+        showNotice("读取剪贴板失败：请先允许剪贴板权限，或确认页面在安全上下文中打开", {
+            level: "error",
+            key: "paste"
+        });
+        return;
+    }
+    if (!text) {
+        showNotice("剪贴板为空", {key: "paste"});
+        return;
+    }
+
+    pasting = true;
+    pasteCancelled = false;
+    // 用户手上按着的键要先松开，否则会和敲出去的字符混在一起
+    ch.forceReleaseAllInput();
+    let progress = showNotice("正在粘贴 0 / " + text.length, {
+        key: "paste",
+        timeout: 0,
+        closable: false,
+        action: {
+            text: "取消",
+            onClick: function () {
+                pasteCancelled = true;
+            }
+        }
+    });
+    let result;
+    try {
+        result = await ch.typeText(text, {
+            onProgress: function (done, total) {
+                progress.setMessage("正在粘贴 " + done + " / " + total);
+            },
+            isCancelled: function () {
+                return pasteCancelled;
+            }
+        });
+    } catch (e) {
+        showNotice("粘贴中断：" + (e && e.message ? e.message : String(e)), {level: "error", key: "paste"});
+        return;
+    } finally {
+        pasting = false;
+    }
+
+    let summary = PageLogic.pasteSummary(result);
+    showNotice(summary.message, {level: summary.level, key: "paste", timeout: summary.timeout});
 }
 
 function paste() {

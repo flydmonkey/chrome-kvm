@@ -4,8 +4,12 @@ var StatusText = (function () {
     // 采集卡的 label 就是设备名，但 canvas 合成流会给一串随机 id，太长的不显示
     var MAX_LABEL_LENGTH = 40;
 
-    // state: {errorLines, track, videoWidth, videoHeight}
+    // state: {unconfigured, errorLines, track, videoWidth, videoHeight}
     function describeVideo(state) {
+        // 没选设备时点「重试」毫无意义，得把人指到设置页去
+        if (state.unconfigured) {
+            return {level: "idle", lines: ["未选择视频设备", "到设置页选择采集卡"]};
+        }
         if (state.errorLines) {
             return {level: "error", lines: state.errorLines};
         }
@@ -15,7 +19,7 @@ var StatusText = (function () {
         }
         // 采集卡被拔掉时轨道会 ended，光看 srcObject 是看不出来的
         if (track.readyState === "ended") {
-            return {level: "error", lines: ["采集已中断", "采集卡可能被拔掉了", "点击重试"]};
+            return {level: "error", lines: ["采集已中断", "采集卡可能被拔掉了", "插回后会自动恢复", "或点此立即重试"]};
         }
 
         var level = "ok";
