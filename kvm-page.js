@@ -694,6 +694,7 @@ function applySettingsUpdate(next) {
     if (changes.serial) {
         restartSerial(next);
     }
+    renderPowerPanel();
     return changes.labels;
 }
 
@@ -923,6 +924,7 @@ function toggleToolbar() {
         toggleShortcutPanel(false);
         toggleViewPanel(false);
         toggleProfilePanel(false);
+        togglePowerPanel(false);
         toggleOcrPanel(false);
     }
     document.querySelector('#toggleTooltip').innerText = collapsed ? '展开' : '收起';
@@ -1016,6 +1018,7 @@ function toggleViewPanel(force) {
     if (open) {
         toggleShortcutPanel(false);
         toggleProfilePanel(false);
+        togglePowerPanel(false);
         toggleOcrPanel(false);
         renderViewPanel();
     }
@@ -1100,6 +1103,7 @@ function toggleProfilePanel(force) {
     if (open) {
         toggleShortcutPanel(false);
         toggleViewPanel(false);
+        togglePowerPanel(false);
         toggleOcrPanel(false);
         renderProfilePanel();
     }
@@ -1111,6 +1115,114 @@ renderProfilePanel();
 document.getElementById("profilePanel").addEventListener("wheel", function (event) {
     event.stopPropagation();
 }, {passive: true});
+
+// ATX 电源：设置里选了继电器才出现按钮。继电器只在按的那一下打开，平时不占串口
+const POWER_ARM_MS = 4000;
+let powerBusy = null;
+let powerArmTimer = null;
+
+function currentAtx() {
+    return AtxRelay.normalize(SettingsStore.readOrEmpty().atx);
+}
+
+function renderPowerPanel() {
+    let button = document.getElementById("powerButton");
+    button.hidden = !currentAtx();
+    if (button.hidden) {
+        togglePowerPanel(false);
+    }
+    document.getElementById("powerShort").disabled = !!powerBusy;
+    document.getElementById("powerLong").disabled = !!powerBusy;
+}
+
+function togglePowerPanel(force) {
+    let panel = document.getElementById("powerPanel");
+    let open = typeof force === "boolean" ? force : panel.hidden;
+    if (open) {
+        toggleShortcutPanel(false);
+        toggleViewPanel(false);
+        toggleProfilePanel(false);
+        toggleOcrPanel(false);
+        renderPowerPanel();
+    } else {
+        disarmForceOff();
+    }
+    panel.hidden = !open;
+    document.getElementById("powerButton").setAttribute("aria-expanded", String(open));
+}
+
+function disarmForceOff() {
+    clearTimeout(powerArmTimer);
+    powerArmTimer = null;
+    document.getElementById("powerLong").dataset.armed = "false";
+    document.getElementById("powerLongHint").textContent = "按住 6 秒，等于拔电，没保存的东西会丢";
+}
+
+// 强制关机要连点两下：手滑点一下就让被控端断电，代价太大
+function armForceOff() {
+    document.getElementById("powerLong").dataset.armed = "true";
+    document.getElementById("powerLongHint").textContent = "再点一次确认强制关机";
+    powerArmTimer = setTimeout(disarmForceOff, POWER_ARM_MS);
+}
+
+async function pressPower(kind) {
+    let atx = currentAtx();
+    if (powerBusy || !atx) {
+        return;
+    }
+    if (kind === "long" && !powerArmTimer) {
+        armForceOff();
+        return;
+    }
+    disarmForceOff();
+    if (!navigator.serial) {
+        showNotice("当前浏览器不支持 Web Serial，无法控制继电器。", {level: "error", key: "power"});
+        return;
+    }
+    let press = AtxRelay.PRESSES[kind];
+    let cancel = {};
+    powerBusy = cancel;
+    renderPowerPanel();
+    let port = null;
+    try {
+        let opened = await AtxRelay.openRelayPort(await navigator.serial.getPorts(),
+            SettingsStore.parseUsbFilter(atx.deviceId), activePort);
+        if (opened.error) {
+            showNotice(opened.error, {level: "error", key: "power", link: {text: "去设置", href: "settings.html"}});
+            return;
+        }
+        port = opened.port;
+        showNotice("正在" + press.label + "…", {
+            key: "power",
+            timeout: press.ms + 2000,
+            action: kind === "long" ? {
+                text: "松开",
+                onClick: function () {
+                    cancel.cancelled = true;
+                    if (cancel.release) {
+                        cancel.release();
+                    }
+                }
+            } : undefined
+        });
+        await AtxRelay.press(port, atx.channel, press.ms, cancel);
+        showNotice(cancel.cancelled ? "已提前松开电源键" : "已" + press.label, {key: "power", timeout: 3000});
+    } catch (e) {
+        // 继电器靠 USB 供电，拔掉就一定松开
+        showNotice("继电器没响应：" + (e && e.message ? e.message : String(e))
+            + "。如果担心电源键还按着，拔掉继电器的 USB 线即可松开。", {level: "error", key: "power"});
+    } finally {
+        if (port) {
+            await port.close().catch(function (e) {
+                console.warn("关闭继电器串口失败", e);
+            });
+        }
+        powerBusy = null;
+        renderPowerPanel();
+    }
+}
+
+renderPowerPanel();
 
 // Win、Alt+Tab、Esc、Ctrl+W 这些键默认被本机的浏览器和系统吃掉，光靠
 // preventDefault 拦不住，根本到不了被控端。Keyboard Lock 能把它们截下来，
@@ -1502,6 +1614,7 @@ function toggleShortcutPanel(force) {
     if (open) {
         toggleViewPanel(false);
         toggleProfilePanel(false);
+        togglePowerPanel(false);
         toggleOcrPanel(false);
         renderShortcutPanel();
     }
@@ -1718,6 +1831,7 @@ function startOcrSelection() {
     toggleShortcutPanel(false);
     toggleViewPanel(false);
     toggleProfilePanel(false);
+    togglePowerPanel(false);
     toggleOcrPanel(false);
     // 相对模式锁着指针时看不到光标，没法框选
     if (document.pointerLockElement) {
@@ -1900,6 +2014,7 @@ function toggleOcrPanel(force) {
         toggleShortcutPanel(false);
         toggleViewPanel(false);
         toggleProfilePanel(false);
+        togglePowerPanel(false);
         renderOcrLangs();
     }
     panel.hidden = !open;

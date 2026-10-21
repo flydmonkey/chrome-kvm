@@ -658,6 +658,17 @@
         color: #60a5fa;
     }
 
+    .view-option.power-danger:hover,
+    .view-option.power-danger[data-armed="true"] {
+        border-color: rgba(248, 113, 113, 0.5);
+        background-color: rgba(248, 113, 113, 0.14);
+    }
+
+    .view-option:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+
     /* 配置多了也别把面板撑出屏幕 */
     #profileOptions {
         overflow-y: auto;
@@ -868,6 +879,15 @@
 
     <div class="toolbar-divider"></div>
 
+    <button onclick="togglePowerPanel()" id="powerButton" aria-label="ATX 电源" aria-expanded="false"
+            aria-controls="powerPanel" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v9"/>
+            <path d="M6.3 6.3a8 8 0 1 0 11.4 0"/>
+        </svg>
+        <span class="tooltip">电源</span>
+    </button>
     <button onclick="window.location.href='settings.html'" aria-label="设置">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
@@ -953,6 +973,23 @@
     <div class="view-options" id="profileOptions" role="radiogroup" aria-label="被控机配置"></div>
     <p class="profile-hint">切换会按那份配置重开采集卡和键鼠。新增、修改配置请到 <a href="settings.html">设置页</a>。</p>
 </div>
+<div class="tool-panel view-panel" id="powerPanel" role="dialog" aria-label="ATX 电源" hidden>
+    <div class="shortcut-header">
+        <span>ATX 电源</span>
+        <button type="button" class="shortcut-close" onclick="togglePowerPanel(false)" aria-label="关闭">×</button>
+    </div>
+    <div class="view-options">
+        <button type="button" class="view-option" id="powerShort" onclick="pressPower('short')">
+            <span>按一下电源键</span>
+            <span class="view-option-hint">开机；开着时让系统按它的设置关机或睡眠</span>
+        </button>
+        <button type="button" class="view-option power-danger" id="powerLong" onclick="pressPower('long')">
+            <span>长按强制关机</span>
+            <span class="view-option-hint" id="powerLongHint">按住 6 秒，等于拔电，没保存的东西会丢</span>
+        </button>
+    </div>
+    <p class="profile-hint">通过 USB 继电器按机箱电源键。继电器在 <a href="settings.html">设置页</a> 里选。</p>
+</div>
 <script src="settings-store.js"></script>
 <script src="profiles.js"></script>
 <script src="status-text.js"></script>
@@ -961,6 +998,7 @@
 <script src="view-modes.js"></script>
 <script src="touch-input.js"></script>
 <script src="ocr.js"></script>
+<script src="atx-relay.js"></script>
 <script src="ch9329.js"></script>
 <script src="kvm-page.js"></script>
 </body>

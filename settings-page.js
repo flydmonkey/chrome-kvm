@@ -163,6 +163,52 @@ function renderUsb() {
     }
 }
 
+function renderAtx() {
+    let atx = AtxRelay.normalize(SettingsStore.readOrEmpty().atx);
+    let saved = atx && SettingsStore.parseUsbFilter(atx.deviceId);
+    let portSelector = document.querySelector("#atxPort");
+    let none = document.createElement("option");
+    none.value = "";
+    none.textContent = "不使用";
+    portSelector.replaceChildren(none);
+    if (navigator.serial) {
+        navigator.serial.getPorts().then(function (ports) {
+            ports.forEach(function (port) {
+                let info = port.getInfo();
+                let option = document.createElement("option");
+                option.value = JSON.stringify(info);
+                option.textContent = DeviceFilter.serialPortLabel(info);
+                if (saved && saved.usbVendorId === info.usbVendorId
+                    && saved.usbProductId === info.usbProductId) {
+                    option.selected = true;
+                }
+                portSelector.appendChild(option);
+            });
+        });
+    }
+
+    let channelSelector = document.querySelector("#atxChannel");
+    AtxRelay.CHANNELS.forEach(function (channel) {
+        let option = document.createElement("option");
+        option.value = String(channel);
+        option.textContent = "第 " + channel + " 路";
+        option.selected = channel === (atx ? atx.channel : 1);
+        channelSelector.appendChild(option);
+    });
+}
+
+function collectAtx() {
+    let option = document.querySelector("#atxPort").selectedOptions[0];
+    if (!option || !option.value) {
+        return null;
+    }
+    return AtxRelay.normalize({
+        deviceId: option.value,
+        label: option.textContent,
+        channel: document.querySelector("#atxChannel").value
+    });
+}
+
 // 灵敏度只对相对模式有意义，选绝对模式时整块收起来。注意只是藏起来，输入框
 // 里的值还在，save() 照常存，切回相对模式不会丢。
 function syncRelativeSpeedVisibility() {
@@ -375,6 +421,7 @@ function collectConfig() {
         // 输入框能填任何东西，夹一下再存；坏值会让鼠标直接不可用
         relativeSpeed: SettingsStore.normalizeRelativeSpeed(
             document.querySelector("#relativeSpeed").value),
+        atx: collectAtx(),
         // 工作模式是芯片里的状态，只有「写入工作模式」才会真正改它。这里带上
         // 已存的值，否则整体覆盖式的 write() 会把它抹掉，下拉框就回到模式 0 了
         workingMode: SettingsStore.readOrEmpty().workingMode
@@ -483,6 +530,7 @@ function renderUsed() {
     shown += showSavedLine("#usedVideo", "视频", settings.video);
     shown += showSavedLine("#usedAudio", "音频", settings.audio);
     shown += showSavedLine("#usedUsb", "控制器", settings.usb);
+    shown += showSavedLine("#usedAtx", "继电器", settings.atx);
     if (shown > 0) {
         document.querySelector("#savedSection").style.display = "block";
     }
@@ -501,6 +549,7 @@ function showSavedLine(selector, name, device) {
 
 renderMedia();
 renderUsb();
+renderAtx();
 renderUsed();
 renderProfiles();
 

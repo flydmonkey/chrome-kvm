@@ -390,11 +390,38 @@
         </div>
     </div>
 
+    <div class="section">
+        <!-- 图标和控制页工具栏上的电源按钮一致 -->
+        <div class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3v9"/>
+                <path d="M6.3 6.3a8 8 0 1 0 11.4 0"/>
+            </svg>
+            ATX 电源（可选）
+        </div>
+        <div class="field">
+            <label for="atxPort">继电器串口（LCUS 系列 USB 继电器）</label>
+            <select id="atxPort" name="atxPort"></select>
+            <p class="hint">
+                继电器的常开触点（COM、NO）并接在主板前面板的电源键跳线（PWR_SW）上，机箱上的电源键照样能用。
+                继电器和 CH9329 多半都是 CH340，列表里名字一样也没关系：控制页会排除正在当键鼠用的那个。
+            </p>
+        </div>
+        <div class="field">
+            <label for="atxChannel">继电器通道</label>
+            <select id="atxChannel" name="atxChannel"></select>
+            <p class="hint">单路继电器选 1。多路继电器选接了电源键的那一路</p>
+        </div>
+        <button type="button" class="confirm-button block" onclick="authUsb()">授权继电器</button>
+    </div>
+
     <div class="section" id="savedSection" style="display: none">
         <div class="section-title">当前已保存</div>
         <p class="saved-line" id="usedVideo" style="display: none"></p>
         <p class="saved-line" id="usedAudio" style="display: none"></p>
         <p class="saved-line" id="usedUsb" style="display: none"></p>
+        <p class="saved-line" id="usedAtx" style="display: none"></p>
     </div>
 
     <div class="section">
@@ -408,6 +435,7 @@
 <script src="profiles.js"></script>
 <script src="device-filter.js"></script>
 <script src="ch9329.js"></script>
+<script src="atx-relay.js"></script>
 <script src="settings-page.js"></script>
 </body>
 </html>
