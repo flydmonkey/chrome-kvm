@@ -410,7 +410,12 @@ function renderStatus(info) {
 // 键盘指示灯。芯片只在被问到时才报灯的状态，所以定时问一下：被控端开机自检、
 // 登录界面会自己改 Num Lock，光凭本机按过什么键推算不准
 const LOCK_POLL_MS = 2000;
+// 查询和键鼠包排同一个队列，芯片漏一次应答就会让鼠标顿一下，所以最近有操作
+// 就跳过这一轮。按锁定键、点小灯之后的那次补查不受限
+const LOCK_POLL_IDLE_MS = 500;
 let lockPollBusy = false;
+// 偶尔漏一次应答很常见，连着两次都没回才把状态改成无应答，免得图标闪黄
+let lockPollMisses = 0;
 
 function renderLockLights(info) {
     let group = document.getElementById("lockLights");
@@ -444,18 +449,27 @@ function renderLockLights(info) {
     });
 }
 
-async function pollLockLights() {
+async function pollLockLights(force) {
     // 芯片降级成只发不等时问了也没有回音，别让每次轮询都白等一个超时
     if (lockPollBusy || !ch || serialLost || document.hidden || !ch.isAckEnabled()) {
+        return;
+    }
+    if (force !== true && Date.now() - ch.lastInputAt < LOCK_POLL_IDLE_MS) {
         return;
     }
     lockPollBusy = true;
     let chip = ch;
     try {
-        let info = await chip.getInfo();
+        let info = await chip.getInfo({quick: true});
         // 等回应期间串口可能被换掉了，旧芯片的状态不能画到新连接上
-        if (chip === ch && !serialLost) {
+        if (chip !== ch || serialLost) {
+            return;
+        }
+        if (info) {
+            lockPollMisses = 0;
             renderStatus(info);
+        } else if (++lockPollMisses >= 2) {
+            renderStatus(null);
         }
     } catch (e) {
         console.warn("查询键盘指示灯失败", e);
@@ -466,7 +480,9 @@ async function pollLockLights() {
 
 // 被控端收到按键后才改灯，稍等一下再问
 function pollLockLightsSoon() {
-    setTimeout(pollLockLights, 150);
+    setTimeout(function () {
+        pollLockLights(true);
+    }, 150);
 }
 
 async function toggleLock(key) {

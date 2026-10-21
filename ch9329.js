@@ -6,6 +6,9 @@ function Ch9329(writer, mouseAbsolute, reader) {
     this._frameWaiters = [];
     this._queue = [];
     this._queueRunning = false;
+    // 最近一次交给发送队列的键鼠包的时间，查询类命令不算。页面靠它避开正在
+    // 操作的时候去问状态
+    this.lastInputAt = 0;
     this._movePending = null;
     this._moveQueued = false;
     // 相对模式还在队列里等着发的那份位移 {buttons, dx, dy}。新的位移加进来而不是
@@ -370,6 +373,9 @@ function Ch9329(writer, mouseAbsolute, reader) {
 
     this._enqueue = function (job) {
         let self = this;
+        if (!job.query) {
+            this.lastInputAt = Date.now();
+        }
         return new Promise(function (resolve) {
             job.resolve = resolve;
             self._queue.push(job);
@@ -495,10 +501,13 @@ function Ch9329(writer, mouseAbsolute, reader) {
         };
     }
 
-    this.getInfo = async function () {
+    // quick 用于后台定时查询：不重试，芯片漏一次应答最多只挡住队列 500ms，
+    // 下一轮再问就是。超时不能缩短：迟到的应答会被下一条命令当成自己的
+    this.getInfo = async function (options) {
+        let quick = !!(options && options.quick);
         let frame = await this._enqueue({
             packet: this.toUnit8Array([0x57, 0xAB, this.ADDR, 0x01, 0x00]),
-            retries: 1,
+            retries: quick ? 0 : 1,
             query: true
         });
         if (!frame || frame.cmd !== 0x81 || !frame.data || frame.data.length < 4) {

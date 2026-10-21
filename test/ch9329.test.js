@@ -231,6 +231,28 @@ test("每条命令都等芯片应答", async function (t) {
         }
     });
 
+    await t.test("后台快速查询不重试：被拒一次就返回，只发一包", async function () {
+        const {chip, ch} = newChip({errorsToInject: 1});
+        assert.strictEqual(await ch.getInfo({quick: true}), null);
+        assert.strictEqual(chip.state.received.length, 1);
+    });
+
+    await t.test("普通查询仍然重试一次", async function () {
+        const {chip, ch} = newChip({errorsToInject: 1});
+        assert.ok(await ch.getInfo());
+        assert.strictEqual(chip.state.received.length, 2);
+    });
+
+    await t.test("只有键鼠包刷新 lastInputAt，查询不算", async function () {
+        const {ch} = newChip();
+        assert.strictEqual(ch.lastInputAt, 0);
+        await ch.getInfo({quick: true});
+        assert.strictEqual(ch.lastInputAt, 0, "查询不是用户操作");
+        const before = Date.now();
+        await ch.tapKey(0x04, true);
+        assert.ok(ch.lastInputAt >= before);
+    });
+
     await t.test("降级后芯片仍然不应答时，查询如实返回 null", async function () {
         const warn = console.warn;
         console.warn = function () {
