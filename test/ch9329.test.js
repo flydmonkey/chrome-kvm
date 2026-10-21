@@ -1317,7 +1317,7 @@ test("文本输入", async function (t) {
     await t.test("逐字符发送按下与释放", async function () {
         const {chip, ch} = newChip();
         const result = await ch.typeText("Ab");
-        assert.deepStrictEqual(result, {typed: 2, skipped: 0, capsToggled: false});
+        assert.deepStrictEqual(result, {typed: 2, skipped: 0, capsToggled: false, cancelled: false});
         const keyFrames = chip.state.received.filter(function (f) { return f.cmd === 0x02; });
         assert.strictEqual(keyFrames.length, 4, "两个字符对应 4 个键盘包");
         assert.strictEqual(keyFrames[0].data[0], 0x02, "大写 A 需要按住 Shift");
@@ -1348,6 +1348,43 @@ test("文本输入", async function (t) {
         assert.strictEqual(result.capsToggled, false);
         const keyFrames = chip.state.received.filter(function (f) { return f.cmd === 0x02; });
         assert.strictEqual(keyFrames[0].data[2], 0x04);
+    });
+
+    await t.test("每处理一个字符报告一次进度，跳过的字符也算", async function () {
+        const {ch} = newChip();
+        const seen = [];
+        await ch.typeText("a中b", {
+            onProgress: function (done, total) {
+                seen.push([done, total]);
+            }
+        });
+        assert.deepStrictEqual(seen, [[1, 3], [2, 3], [3, 3]]);
+    });
+
+    await t.test("中途取消就停在当前字符之后，不留按住的键", async function () {
+        const {chip, ch} = newChip();
+        let done = 0;
+        const result = await ch.typeText("abcdef", {
+            onProgress: function (n) {
+                done = n;
+            },
+            isCancelled: function () {
+                return done >= 2;
+            }
+        });
+        assert.strictEqual(result.cancelled, true);
+        assert.strictEqual(result.typed, 2);
+        const keyFrames = chip.state.received.filter(function (f) { return f.cmd === 0x02; });
+        assert.strictEqual(keyFrames.length, 4, "只敲了两个字符");
+        assert.deepStrictEqual(keyFrames[keyFrames.length - 1].data, [0, 0, 0, 0, 0, 0, 0, 0],
+            "最后一个包必须是释放");
+    });
+
+    await t.test("没取消时 cancelled 为 false", async function () {
+        const {ch} = newChip();
+        const result = await ch.typeText("ab", {isCancelled: function () { return false; }});
+        assert.strictEqual(result.cancelled, false);
+        assert.strictEqual(result.typed, 2);
     });
 });
 

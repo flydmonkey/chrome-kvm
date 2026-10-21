@@ -763,9 +763,13 @@ function Ch9329(writer, mouseAbsolute, reader) {
         }
     }
 
-    this.typeText = async function (text) {
+    // options.onProgress(done, total)：每处理完一个字符调用一次，跳过的也算
+    // options.isCancelled()：每个字符之前问一次，返回 true 就停。只在两次敲键
+    // 之间停，tapKey 本身是按下+释放成对的，所以取消不会留下按住的键
+    this.typeText = async function (text, options) {
+        options = options || {};
         if (!text) {
-            return {typed: 0, skipped: 0, capsToggled: false};
+            return {typed: 0, skipped: 0, capsToggled: false, cancelled: false};
         }
         let capsToggled = false;
         try {
@@ -775,16 +779,24 @@ function Ch9329(writer, mouseAbsolute, reader) {
         }
         let typed = 0;
         let skipped = 0;
+        let cancelled = false;
         for (let i = 0; i < text.length; i++) {
+            if (options.isCancelled && options.isCancelled()) {
+                cancelled = true;
+                break;
+            }
             let info = this.resolveTypeChar(text.charAt(i));
             if (!info || info.code == null) {
                 skipped++;
-                continue;
+            } else {
+                await this.tapKey(info.code, info.shift);
+                typed++;
             }
-            await this.tapKey(info.code, info.shift);
-            typed++;
+            if (options.onProgress) {
+                options.onProgress(i + 1, text.length);
+            }
         }
-        return {typed: typed, skipped: skipped, capsToggled: capsToggled};
+        return {typed: typed, skipped: skipped, capsToggled: capsToggled, cancelled: cancelled};
     }
 
     this.sendCtrlAltDelete = async function () {
