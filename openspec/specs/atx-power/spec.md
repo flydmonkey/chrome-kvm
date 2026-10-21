@@ -7,7 +7,7 @@ TBD - created by archiving change add-atx-power. Update Purpose after archive.
 
 ### Requirement: 继电器配置
 
-设置页 SHALL 提供继电器串口（含「不使用」）与通道（1–4）选择，保存为 `settings.atx = {deviceId, label, channel}`；选「不使用」时 MUST 存为 `null`。通道不在 1–4 内 SHALL 按 1 处理。
+设置页 SHALL 提供继电器串口（含「不使用」）、电源键通道（1–4）与复位键通道（「不接复位键」或 1–4）选择，保存为 `settings.atx = {deviceId, label, channel, resetChannel}`；选「不使用」时 MUST 存为 `null`。电源键通道不在 1–4 内 SHALL 按 1 处理。复位键通道不在 1–4 内或与电源键通道相同时 MUST 视为 `null`；设置页 SHALL 禁用与电源键相同的复位通道选项，并在冲突时退回「不接复位键」。
 
 #### Scenario: 选中继电器并保存
 
@@ -18,6 +18,11 @@ TBD - created by archiving change add-atx-power. Update Purpose after archive.
 
 - **WHEN** 继电器串口选「不使用」并保存
 - **THEN** `settings.atx` 为 `null`，控制页不显示电源按钮
+
+#### Scenario: 复位通道与电源键冲突
+
+- **WHEN** 复位键通道为第 2 路，用户把电源键通道改为第 2 路
+- **THEN** 复位键通道退回「不接复位键」，第 2 路在复位选项中不可选
 
 ### Requirement: 挑选继电器串口
 
@@ -35,7 +40,7 @@ TBD - created by archiving change add-atx-power. Update Purpose after archive.
 
 ### Requirement: 按电源键
 
-按压 SHALL 发送 LCUS 吸合指令 `A0 通道 01 校验`，等待指定时长后发送断开指令 `A0 通道 00 校验`（校验为前三字节和的低 8 位），然后关闭串口。断开指令 MUST 在吸合失败或等待被取消时同样发送。短按 SHALL 为 500ms，长按 SHALL 为 6000ms；长按 MUST 连点两次（4 秒内）才执行，执行中提示条 SHALL 提供「松开」以提前断开。按压进行中 MUST 禁用两个按钮。
+按压 SHALL 发送 LCUS 吸合指令 `A0 通道 01 校验`，等待指定时长后发送断开指令 `A0 通道 00 校验`（校验为前三字节和的低 8 位），然后关闭串口。断开指令 MUST 在吸合失败或等待被取消时同样发送。短按与复位 SHALL 为 500ms，长按 SHALL 为 6000ms；短按与长按使用电源键通道，复位使用复位键通道。「按一下复位键」 MUST 仅在设置了复位键通道时显示。长按与复位 MUST 连点两次（4 秒内）才执行，且确认状态只对最后点的那个按钮有效；长按执行中提示条 SHALL 提供「松开」以提前断开。按压进行中 MUST 禁用所有按钮。
 
 #### Scenario: 短按
 
@@ -48,6 +53,13 @@ TBD - created by archiving change add-atx-power. Update Purpose after archive.
 - **THEN** 不发送任何指令，提示文字变为「再点一次确认强制关机」
 - **WHEN** 4 秒内再点一次，并在提示条点「松开」
 - **THEN** 立即写入断开指令，提示「已提前松开电源键」
+
+#### Scenario: 复位需确认
+
+- **WHEN** 复位键通道为第 2 路，用户点「按一下复位键」，接着点「长按强制关机」，再点「按一下复位键」
+- **THEN** 不发送任何指令，复位按钮处于待确认状态
+- **WHEN** 4 秒内再点一次「按一下复位键」
+- **THEN** 依次写入 `A0 02 01 A3`、约 500ms 后写入 `A0 02 00 A2`，提示「已按一下复位键」
 
 ### Requirement: 继电器跟随被控机配置
 
