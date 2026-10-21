@@ -554,6 +554,7 @@ async function restartSerial(settings) {
     activePort = null;
     serialLost = false;
     pasteCancelled = true;
+    keyRepeatStop = true;
     if (document.pointerLockElement) {
         document.exitPointerLock();
     }
@@ -628,19 +629,26 @@ function open() {
 
     videoElement.style.cursor = "none";
     document.addEventListener('keydown', (event) => {
+        // 快捷键面板里填自定义快捷键时，按键是给输入框的，不能发给被控端
+        if (isEditableTarget(event.target)) {
+            return;
+        }
         event.preventDefault()
         // 按住不放时本机会连发 keydown，但被控端只要收到「按下」就会自己按
         // 它的设置重复。再转发一遍只是重发同一份报告，低波特率下白白占串口。
-        // 粘贴期间用户的按键会和模拟敲键的报告互相覆盖，打出乱码，也先不转发
-        if (!ch || event.repeat || pasting) {
+        // 粘贴和连按期间用户的按键会和模拟敲键的报告互相覆盖，也先不转发
+        if (!ch || event.repeat || pasting || keyRepeating) {
             return;
         }
         ch.keydown(event.code);
     })
 
     document.addEventListener('keyup', (event) => {
+        if (isEditableTarget(event.target)) {
+            return;
+        }
         event.preventDefault();
-        if (!ch || pasting) {
+        if (!ch || pasting || keyRepeating) {
             return;
         }
         ch.keyup(event.code);
@@ -803,6 +811,9 @@ function toggleToolbar() {
     toolbar.classList.toggle('hidden');
     // 箭头方向交给 CSS 旋转，这里只更新文案
     const collapsed = toolbar.classList.contains('hidden');
+    if (collapsed) {
+        toggleShortcutPanel(false);
+    }
     document.querySelector('#toggleTooltip').innerText = collapsed ? '展开' : '收起';
     document.querySelector('#toggleButton').setAttribute('aria-label', collapsed ? '展开工具栏' : '收起工具栏');
 }
@@ -1072,6 +1083,275 @@ function releaseAllInput() {
     }
     ch.forceReleaseAllInput();
 }
+
+function isEditableTarget(target) {
+    if (!target || !target.tagName) {
+        return false;
+    }
+    let tag = target.tagName.toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select" || !!target.isContentEditable;
+}
+
+function sleep(ms) {
+    return new Promise(function (resolve) {
+        setTimeout(resolve, ms);
+    });
+}
+
+// 按采集卡的原始分辨率截，而不是按页面上缩放后的尺寸，小字才看得清
+async function takeScreenshot() {
+    let width = videoElement.videoWidth;
+    let height = videoElement.videoHeight;
+    if (!width || !height || videoBroken()) {
+        showNotice("没有画面可截，请先确认视频已经打开", {level: "warn", key: "screenshot"});
+        return;
+    }
+    let canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d").drawImage(videoElement, 0, 0, width, height);
+    let blob = await new Promise(function (resolve) {
+        canvas.toBlob(resolve, "image/png");
+    });
+    if (!blob) {
+        showNotice("截图失败：浏览器没能生成图片", {level: "error", key: "screenshot"});
+        return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = StatusText.screenshotFileName();
+    a.click();
+    setTimeout(function () {
+        URL.revokeObjectURL(url);
+    }, 60000);
+
+    // 顺手放进剪贴板，贴进聊天或工单比找下载的文件快。不支持或没给权限就算了，文件已经存下了
+    let copied = false;
+    try {
+        if (navigator.clipboard && navigator.clipboard.write && typeof ClipboardItem !== "undefined") {
+            await navigator.clipboard.write([new ClipboardItem({"image/png": blob})]);
+            copied = true;
+        }
+    } catch (e) {
+        console.warn("截图复制到剪贴板失败", e);
+    }
+    showNotice("截图已保存（" + width + "×" + height + "）" + (copied ? "，并已复制到剪贴板" : ""), {
+        key: "screenshot",
+        timeout: 3000
+    });
+}
+
+// 开机连按期间为 true：和粘贴一样，用户的按键会和连按的报告互相覆盖
+let keyRepeating = false;
+let keyRepeatStop = false;
+let shortcutRepeatOn = false;
+
+async function runShortcut(item, repeatable) {
+    if (keyRepeating) {
+        // 连按中再点任何快捷键都当作「停」，免得找不到提示条上的按钮
+        keyRepeatStop = true;
+        return;
+    }
+    if (!ch) {
+        showNotice("键鼠设备未连接", {level: "warn", key: "shortcut"});
+        return;
+    }
+    if (pasting) {
+        showNotice("正在粘贴，等粘贴结束或取消后再按快捷键", {level: "warn", key: "shortcut"});
+        return;
+    }
+    let parsed = Shortcuts.parseSequence(item.combo);
+    if (parsed.error) {
+        showNotice("快捷键无效：" + parsed.error, {level: "error", key: "shortcut"});
+        return;
+    }
+    if (repeatable && shortcutRepeatOn) {
+        repeatShortcut(parsed);
+        return;
+    }
+    let chip = ch;
+    for (let i = 0; i < parsed.steps.length; i++) {
+        if (i > 0) {
+            // 多步之间留点空，被控端弹出的菜单、对话框要时间画出来才接得住下一步
+            await sleep(150);
+        }
+        if (ch !== chip || !await chip.tapCombo(parsed.steps[i])) {
+            showNotice("快捷键没有发完：" + parsed.text, {level: "error", key: "shortcut"});
+            return;
+        }
+    }
+    showNotice("已发送 " + parsed.text, {key: "shortcut", timeout: 1500});
+}
+
+async function repeatShortcut(parsed) {
+    let chip = ch;
+    keyRepeating = true;
+    keyRepeatStop = false;
+    chip.forceReleaseAllInput();
+    let count = 0;
+    let started = Date.now();
+    let notice = showNotice("正在连按 " + parsed.text, {
+        key: "shortcut",
+        timeout: 0,
+        closable: false,
+        action: {
+            text: "停止",
+            onClick: function () {
+                keyRepeatStop = true;
+            }
+        }
+    });
+    try {
+        while (!keyRepeatStop && ch === chip && Date.now() - started < Shortcuts.REPEAT_MAX_MS) {
+            for (let i = 0; i < parsed.steps.length; i++) {
+                await chip.tapCombo(parsed.steps[i]);
+            }
+            count++;
+            notice.setMessage("正在连按 " + parsed.text + "（已按 " + count + " 次），被控端开机自检时会认到");
+            await sleep(Shortcuts.REPEAT_INTERVAL_MS);
+        }
+    } finally {
+        keyRepeating = false;
+    }
+    let timedOut = !keyRepeatStop && ch === chip;
+    showNotice((timedOut ? "连按已到 " + Shortcuts.REPEAT_MAX_MS / 1000 + " 秒上限，自动停止" : "已停止连按")
+        + "，共按了 " + count + " 次 " + parsed.text, {key: "shortcut", timeout: 3000});
+}
+
+function toggleShortcutPanel(force) {
+    let panel = document.getElementById("shortcutPanel");
+    let open = typeof force === "boolean" ? force : panel.hidden;
+    if (open) {
+        renderShortcutPanel();
+    }
+    panel.hidden = !open;
+    document.getElementById("shortcutButton").setAttribute("aria-expanded", String(open));
+}
+
+function renderShortcutPanel() {
+    let groups = document.getElementById("shortcutGroups");
+    groups.textContent = "";
+    let custom = Shortcuts.loadCustom(localStorage);
+    if (custom.length) {
+        groups.appendChild(buildShortcutGroup({title: "自定义", items: custom}, true));
+    }
+    Shortcuts.PRESETS.forEach(function (group) {
+        groups.appendChild(buildShortcutGroup(group, false));
+    });
+}
+
+function buildShortcutGroup(group, removable) {
+    let section = document.createElement("section");
+    section.className = "shortcut-group";
+    let header = document.createElement("div");
+    header.className = "shortcut-group-title";
+    let title = document.createElement("span");
+    title.textContent = group.title;
+    header.appendChild(title);
+    if (group.repeatable) {
+        let toggle = document.createElement("label");
+        toggle.className = "shortcut-repeat";
+        toggle.title = "打开后点按键会每 " + Shortcuts.REPEAT_INTERVAL_MS / 1000 + " 秒按一次，最长 "
+            + Shortcuts.REPEAT_MAX_MS / 1000 + " 秒。先打开连按再给被控端开机，就不会错过 BIOS 热键";
+        let checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = shortcutRepeatOn;
+        checkbox.addEventListener("change", function () {
+            shortcutRepeatOn = checkbox.checked;
+        });
+        toggle.appendChild(checkbox);
+        toggle.appendChild(document.createTextNode("开机连按"));
+        header.appendChild(toggle);
+    }
+    section.appendChild(header);
+
+    let list = document.createElement("div");
+    list.className = "shortcut-list";
+    group.items.forEach(function (item, index) {
+        let cell = document.createElement("div");
+        cell.className = "shortcut-cell";
+        let button = document.createElement("button");
+        button.type = "button";
+        button.className = "shortcut-item";
+        let combo = document.createElement("span");
+        combo.className = "shortcut-combo";
+        combo.textContent = item.combo;
+        let label = document.createElement("span");
+        label.className = "shortcut-label";
+        label.textContent = item.label;
+        button.appendChild(combo);
+        button.appendChild(label);
+        button.addEventListener("click", function () {
+            runShortcut(item, !!group.repeatable);
+        });
+        cell.appendChild(button);
+        if (removable) {
+            let remove = document.createElement("button");
+            remove.type = "button";
+            remove.className = "shortcut-remove";
+            remove.textContent = "×";
+            remove.setAttribute("aria-label", "删除 " + item.label);
+            remove.addEventListener("click", function () {
+                let next = Shortcuts.loadCustom(localStorage);
+                next.splice(index, 1);
+                Shortcuts.saveCustom(localStorage, next);
+                renderShortcutPanel();
+            });
+            cell.appendChild(remove);
+        }
+        list.appendChild(cell);
+    });
+    section.appendChild(list);
+    return section;
+}
+
+function addCustomShortcut() {
+    let labelInput = document.getElementById("shortcutLabel");
+    let comboInput = document.getElementById("shortcutCombo");
+    let error = document.getElementById("shortcutError");
+    let list = Shortcuts.loadCustom(localStorage);
+    if (list.length >= Shortcuts.MAX_CUSTOM) {
+        error.textContent = "最多保存 " + Shortcuts.MAX_CUSTOM + " 个自定义快捷键";
+        return;
+    }
+    let custom = Shortcuts.makeCustom(labelInput.value, comboInput.value);
+    if (custom.error) {
+        error.textContent = custom.error;
+        return;
+    }
+    list.push(custom);
+    Shortcuts.saveCustom(localStorage, list);
+    error.textContent = "";
+    labelInput.value = "";
+    comboInput.value = "";
+    renderShortcutPanel();
+}
+
+(function bindShortcutPanel() {
+    let panel = document.getElementById("shortcutPanel");
+    if (!panel) {
+        return;
+    }
+    // 面板内容多时要能滚动，滚轮不能漏到 document 上变成被控端的滚动
+    panel.addEventListener("wheel", function (event) {
+        event.stopPropagation();
+    }, {passive: true});
+    ["shortcutLabel", "shortcutCombo"].forEach(function (id) {
+        document.getElementById(id).addEventListener("keydown", function (event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                addCustomShortcut();
+            }
+        });
+    });
+    // 别的标签页改了自定义快捷键，这边打开着的面板跟着刷新
+    window.addEventListener("storage", function (event) {
+        if (event.key === Shortcuts.STORAGE_KEY && !panel.hidden) {
+            renderShortcutPanel();
+        }
+    });
+})();
 
 // 卸载 Service Worker 并清空 Cache Storage，不再使用 SW 缓存
 (function clearServiceWorkerAndCaches() {

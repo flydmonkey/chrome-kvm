@@ -289,6 +289,204 @@
         background-color: rgba(255, 255, 255, 0.12);
         color: #f4f4f5;
     }
+
+    /* 快捷键面板：贴在工具栏右边，和工具栏同一套毛玻璃外观 */
+    .shortcut-panel {
+        position: fixed;
+        top: 50%;
+        left: 64px;
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: column;
+        width: min(380px, calc(100vw - 80px));
+        max-height: min(640px, calc(100vh - 32px));
+        background-color: rgba(24, 24, 27, 0.92);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        color: #e4e4e7;
+        font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        z-index: 1050;
+        cursor: default;
+    }
+
+    .shortcut-panel[hidden] {
+        display: none;
+    }
+
+    .shortcut-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px 8px 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        font-weight: 600;
+    }
+
+    .shortcut-body {
+        overflow-y: auto;
+        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        padding: 6px 12px 12px;
+    }
+
+    .shortcut-group-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 10px 2px 6px;
+        color: #a1a1aa;
+        font-size: 12px;
+    }
+
+    .shortcut-repeat {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: #e4e4e7;
+        cursor: pointer;
+    }
+
+    .shortcut-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    .shortcut-cell {
+        position: relative;
+        display: flex;
+    }
+
+    .shortcut-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1px;
+        min-width: 0;
+        padding: 6px 9px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        background-color: rgba(255, 255, 255, 0.04);
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .shortcut-item:hover {
+        background-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .shortcut-item:active {
+        background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .shortcut-item:focus-visible,
+    .shortcut-panel input:focus-visible,
+    .shortcut-panel button:focus-visible {
+        outline: 2px solid #60a5fa;
+        outline-offset: -2px;
+    }
+
+    .shortcut-combo {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font: 600 12px/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace;
+        color: #f4f4f5;
+    }
+
+    .shortcut-label {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #a1a1aa;
+        font-size: 12px;
+    }
+
+    .shortcut-remove {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border: none;
+        border-radius: 4px;
+        background: transparent;
+        color: #a1a1aa;
+        font-size: 14px;
+        line-height: 20px;
+        cursor: pointer;
+    }
+
+    .shortcut-remove:hover {
+        background-color: rgba(255, 82, 82, 0.2);
+        color: #ff5252;
+    }
+
+    .shortcut-custom {
+        display: grid;
+        grid-template-columns: 1fr 1.4fr auto;
+        gap: 6px;
+        margin-top: 4px;
+    }
+
+    .shortcut-custom input {
+        min-width: 0;
+        padding: 6px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 6px;
+        background-color: rgba(0, 0, 0, 0.3);
+        color: #f4f4f5;
+        font: inherit;
+    }
+
+    .shortcut-custom button,
+    .shortcut-close {
+        padding: 0 10px;
+        border: none;
+        border-radius: 6px;
+        background-color: rgba(96, 165, 250, 0.2);
+        color: #93c5fd;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .shortcut-close {
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        background: transparent;
+        color: #a1a1aa;
+        font-size: 16px;
+    }
+
+    .shortcut-close:hover {
+        background-color: rgba(255, 255, 255, 0.12);
+        color: #f4f4f5;
+    }
+
+    .shortcut-hint {
+        margin: 6px 2px 0;
+        color: #71717a;
+        font-size: 12px;
+    }
+
+    .shortcut-error {
+        margin: 4px 2px 0;
+        color: #ff8a80;
+        font-size: 12px;
+    }
+
+    .shortcut-error:empty {
+        display: none;
+    }
 </style>
 
 <body>
@@ -354,6 +552,14 @@
         </svg>
         <span class="tooltip">停止录制</span>
     </button>
+    <button onclick="takeScreenshot()" aria-label="截图">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 8a2 2 0 0 1 2-2h1.5l1.5-2h6l1.5 2H18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/>
+            <circle cx="12" cy="13" r="3.5"/>
+        </svg>
+        <span class="tooltip">截图（保存 PNG 并复制）</span>
+    </button>
 
     <div class="toolbar-divider"></div>
 
@@ -368,6 +574,18 @@
             <path d="M7 15h10"/>
         </svg>
         <span class="tooltip">Ctrl+Alt+Delete</span>
+    </button>
+    <button onclick="toggleShortcutPanel()" id="shortcutButton" aria-label="快捷键" aria-expanded="false"
+            aria-controls="shortcutPanel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+            <path d="M14 17.5h7"/>
+            <path d="M17.5 14v7"/>
+        </svg>
+        <span class="tooltip">快捷键</span>
     </button>
     <button onclick="pasteText()" aria-label="粘贴文本">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -423,9 +641,27 @@
         <span class="tooltip" id="toggleTooltip">展开</span>
     </button>
 </div>
+<div class="shortcut-panel" id="shortcutPanel" role="dialog" aria-label="快捷键" hidden>
+    <div class="shortcut-header">
+        <span>快捷键</span>
+        <button type="button" class="shortcut-close" onclick="toggleShortcutPanel(false)" aria-label="关闭">×</button>
+    </div>
+    <div class="shortcut-body">
+        <div id="shortcutGroups"></div>
+        <div class="shortcut-group-title"><span>添加自定义</span></div>
+        <div class="shortcut-custom">
+            <input id="shortcutLabel" type="text" placeholder="名称（可选）" maxlength="20" autocomplete="off">
+            <input id="shortcutCombo" type="text" placeholder="如 Ctrl+Alt+F2" autocomplete="off" spellcheck="false">
+            <button type="button" onclick="addCustomShortcut()">添加</button>
+        </div>
+        <div class="shortcut-error" id="shortcutError" role="alert"></div>
+        <p class="shortcut-hint">用 + 连接同时按的键；多步用空格隔开，如「Win+R Enter」。修饰键可写 Ctrl、Shift、Alt、Win，Mac 上写 Cmd、Option。</p>
+    </div>
+</div>
 <script src="settings-store.js"></script>
 <script src="status-text.js"></script>
 <script src="page-logic.js"></script>
+<script src="shortcuts.js"></script>
 <script src="ch9329.js"></script>
 <script src="kvm-page.js"></script>
 </body>

@@ -319,4 +319,10 @@ test("录像文件名", async (t) => {
     await t.test("不传时间就用当前时间，格式仍然对得上", () => {
         assert.match(StatusText.recordFileName(), /^\d{8}-\d{6}\.webm$/);
     });
+
+    await t.test("截图用同样的时间格式，扩展名是 png", () => {
+        let at = new Date(2026, 9, 21, 9, 7, 30);
+        assert.strictEqual(StatusText.screenshotFileName(at), "20261021-090730.png");
+        assert.match(StatusText.screenshotFileName(), /^\d{8}-\d{6}\.png$/);
+    });
 });

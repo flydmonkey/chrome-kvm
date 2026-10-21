@@ -131,8 +131,8 @@ var StatusText = (function () {
         return {label: "退出全屏", lines: full};
     }
 
-    // 录像文件名用本地时间，方便对着操作时间找文件
-    function recordFileName(date) {
+    // 录像和截图的文件名用本地时间，方便对着操作时间找文件
+    function recordFileName(date, extension) {
         var at = date || new Date();
         var pad = function (value) {
             return String(value).padStart(2, "0");
@@ -145,7 +145,11 @@ var StatusText = (function () {
             + pad(at.getHours())
             + pad(at.getMinutes())
             + pad(at.getSeconds())
-            + ".webm";
+            + (extension || ".webm");
+    }
+
+    function screenshotFileName(date) {
+        return recordFileName(date, ".png");
     }
 
     return {
@@ -153,7 +157,8 @@ var StatusText = (function () {
         describeVideo: describeVideo,
         describeSerial: describeSerial,
         describeFullscreen: describeFullscreen,
-        recordFileName: recordFileName
+        recordFileName: recordFileName,
+        screenshotFileName: screenshotFileName
     };
 })();
 
