@@ -9,7 +9,8 @@ var AtxRelay = (function () {
 
     var PRESSES = {
         short: {ms: SHORT_PRESS_MS, label: "按一下电源键"},
-        long: {ms: LONG_PRESS_MS, label: "长按电源键强制关机"}
+        long: {ms: LONG_PRESS_MS, label: "长按电源键强制关机"},
+        reset: {ms: SHORT_PRESS_MS, label: "按一下复位键", resetChannel: true}
     };
 
     // LCUS 协议：A0 通道 开关 校验和（前三字节相加取低 8 位）
@@ -23,16 +24,28 @@ var AtxRelay = (function () {
         return CHANNELS.indexOf(n) === -1 ? 1 : n;
     }
 
-    // 没选继电器就返回 null，页面据此隐藏电源按钮
+    // 没选继电器就返回 null，页面据此隐藏电源按钮。复位键可以不接，接了也
+    // 不能和电源键同一路，否则点重启按的却是电源键
     function normalize(atx) {
         if (!atx || typeof atx !== "object" || !atx.deviceId) {
             return null;
         }
+        var channel = normalizeChannel(atx.channel);
+        var reset = typeof atx.resetChannel === "number" ? atx.resetChannel : parseInt(atx.resetChannel, 10);
         return {
             deviceId: atx.deviceId,
             label: atx.label || "",
-            channel: normalizeChannel(atx.channel)
+            channel: channel,
+            resetChannel: CHANNELS.indexOf(reset) !== -1 && reset !== channel ? reset : null
         };
+    }
+
+    function channelFor(atx, kind) {
+        var press = PRESSES[kind];
+        if (!atx || !press) {
+            return null;
+        }
+        return press.resetChannel ? atx.resetChannel : atx.channel;
     }
 
     function matches(port, filter) {
@@ -114,6 +127,7 @@ var AtxRelay = (function () {
         command: command,
         normalizeChannel: normalizeChannel,
         normalize: normalize,
+        channelFor: channelFor,
         candidatePorts: candidatePorts,
         openRelayPort: openRelayPort,
         press: press

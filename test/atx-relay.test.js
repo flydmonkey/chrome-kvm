@@ -64,7 +64,24 @@ test("继电器配置", async (t) => {
         assert.strictEqual(AtxRelay.normalize({deviceId: device, channel: 9}).channel, 1);
         assert.strictEqual(AtxRelay.normalize({deviceId: device}).channel, 1);
         assert.deepStrictEqual(AtxRelay.normalize({deviceId: device, label: "LCUS", channel: 2}),
-            {deviceId: device, label: "LCUS", channel: 2});
+            {deviceId: device, label: "LCUS", channel: 2, resetChannel: null});
+    });
+
+    await t.test("复位键可以不接；和电源键同一路或越界时视为不接", () => {
+        const device = JSON.stringify(CH340);
+        assert.strictEqual(AtxRelay.normalize({deviceId: device, channel: 1, resetChannel: "2"}).resetChannel, 2);
+        assert.strictEqual(AtxRelay.normalize({deviceId: device, channel: 1, resetChannel: 1}).resetChannel, null);
+        assert.strictEqual(AtxRelay.normalize({deviceId: device, channel: 1, resetChannel: 7}).resetChannel, null);
+        assert.strictEqual(AtxRelay.normalize({deviceId: device, channel: 1, resetChannel: ""}).resetChannel, null);
+    });
+
+    await t.test("按哪个键用哪一路", () => {
+        const atx = {channel: 1, resetChannel: 2};
+        assert.strictEqual(AtxRelay.channelFor(atx, "short"), 1);
+        assert.strictEqual(AtxRelay.channelFor(atx, "long"), 1);
+        assert.strictEqual(AtxRelay.channelFor(atx, "reset"), 2);
+        assert.strictEqual(AtxRelay.channelFor({channel: 1, resetChannel: null}, "reset"), null);
+        assert.strictEqual(AtxRelay.channelFor(atx, "nope"), null);
     });
 });
 
