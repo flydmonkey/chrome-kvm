@@ -294,6 +294,25 @@ test("相对模式灵敏度", async (t) => {
     });
 });
 
+test("采集帧率", async (t) => {
+    await t.test("没存过就是 0，交给浏览器决定", () => {
+        assert.strictEqual(SettingsStore.normalizeFrameRate(undefined), 0);
+        assert.strictEqual(SettingsStore.normalizeFrameRate(null), 0);
+        assert.strictEqual(SettingsStore.normalizeFrameRate(""), 0);
+    });
+
+    await t.test("下拉框里的档位原样通过，字符串也认", () => {
+        assert.strictEqual(SettingsStore.normalizeFrameRate(30), 30);
+        assert.strictEqual(SettingsStore.normalizeFrameRate("60"), 60);
+    });
+
+    await t.test("手改出来的怪值退回不指定", () => {
+        assert.strictEqual(SettingsStore.normalizeFrameRate(144), 0);
+        assert.strictEqual(SettingsStore.normalizeFrameRate(-30), 0);
+        assert.strictEqual(SettingsStore.normalizeFrameRate("快"), 0);
+    });
+});
+
 test("波特率排序", async (t) => {
     await t.test("上次用过的排最前", () => {
         assert.deepStrictEqual(SettingsStore.baudRateOrder(115200, [9600, 115200]), [115200, 9600]);

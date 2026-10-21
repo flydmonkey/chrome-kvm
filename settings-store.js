@@ -176,6 +176,15 @@ var SettingsStore = (function () {
         return Math.min(Math.max(n, RELATIVE_SPEED_MIN), RELATIVE_SPEED_MAX);
     }
 
+    // 采集帧率。0 表示不指定，交给浏览器（Chrome 不指定时按 30fps 要）。
+    // 只认下拉框里有的档位，手改出来的怪值退回不指定
+    var FRAME_RATES = [30, 60];
+
+    function normalizeFrameRate(value) {
+        var n = typeof value === "number" ? value : parseInt(value, 10);
+        return FRAME_RATES.indexOf(n) === -1 ? 0 : n;
+    }
+
     // 上次用过的波特率排最前，这样正常情况下第一次就能连上
     function baudRateOrder(saved, available) {
         var list = (available || []).slice();
@@ -203,6 +212,8 @@ var SettingsStore = (function () {
         pickSerialPorts: pickSerialPorts,
         baudRateOrder: baudRateOrder,
         normalizeRelativeSpeed: normalizeRelativeSpeed,
+        normalizeFrameRate: normalizeFrameRate,
+        FRAME_RATES: FRAME_RATES,
         RELATIVE_SPEED_MIN: RELATIVE_SPEED_MIN,
         RELATIVE_SPEED_MAX: RELATIVE_SPEED_MAX
     };

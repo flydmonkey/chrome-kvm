@@ -80,3 +80,35 @@ test("下拉框设备列表", async (t) => {
         assert.deepStrictEqual(devices, [BUILTIN_CAM, CAPTURE_CARD]);
     });
 });
+
+test("串口下拉框文案", async (t) => {
+    await t.test("认识的芯片显示厂商、型号和十六进制 VID:PID", () => {
+        // getInfo() 给的是十进制数：6790 = 0x1A86，29987 = 0x7523
+        assert.strictEqual(DeviceFilter.serialPortLabel({usbVendorId: 6790, usbProductId: 29987}),
+            "WCH CH340（1A86:7523）");
+    });
+
+    await t.test("厂商认识但型号不认识时只说厂商", () => {
+        assert.strictEqual(DeviceFilter.serialPortLabel({usbVendorId: 0x1A86, usbProductId: 0x1234}),
+            "WCH 串口（1A86:1234）");
+    });
+
+    await t.test("都不认识也照样给出 VID:PID，方便查", () => {
+        assert.strictEqual(DeviceFilter.serialPortLabel({usbVendorId: 0x2E8A, usbProductId: 0x000A}),
+            "未知串口（2E8A:000A）");
+    });
+
+    await t.test("十六进制补足四位", () => {
+        assert.strictEqual(DeviceFilter.serialPortLabel({usbVendorId: 0x0403, usbProductId: 0x6001}),
+            "FTDI FT232R（0403:6001）");
+    });
+
+    await t.test("没有 USB 信息的串口不炸", () => {
+        assert.strictEqual(DeviceFilter.serialPortLabel({}), "串口（无 USB 信息）");
+        assert.strictEqual(DeviceFilter.serialPortLabel(null), "串口（无 USB 信息）");
+    });
+
+    await t.test("缺 PID 时用问号占位", () => {
+        assert.strictEqual(DeviceFilter.serialPortLabel({usbVendorId: 0x1A86}), "WCH 串口（1A86:????）");
+    });
+});

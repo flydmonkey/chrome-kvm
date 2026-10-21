@@ -31,10 +31,58 @@ var DeviceFilter = (function () {
         return visible.length ? visible : all;
     }
 
+    // Web Serial 只给 VID/PID，不给设备名。原来直接把两个十进制数字摆出来，
+    // 用户得自己换算成十六进制再去查，才知道哪个是接 CH9329 的那颗 USB 转串口芯片
+    var SERIAL_VENDORS = {
+        0x1A86: "WCH",
+        0x0403: "FTDI",
+        0x10C4: "Silicon Labs",
+        0x067B: "Prolific"
+    };
+    var SERIAL_CHIPS = {
+        "1A86:7523": "CH340",
+        "1A86:7522": "CH340K",
+        "1A86:5523": "CH341",
+        "1A86:55D2": "CH342",
+        "1A86:55D3": "CH343",
+        "1A86:55D4": "CH9102",
+        "0403:6001": "FT232R",
+        "0403:6015": "FT231X",
+        "10C4:EA60": "CP210x",
+        "067B:2303": "PL2303"
+    };
+
+    function hex4(value) {
+        return ("0000" + value.toString(16).toUpperCase()).slice(-4);
+    }
+
+    // info 是 SerialPort.getInfo() 的返回值
+    function serialPortLabel(info) {
+        if (!info || info.usbVendorId == null) {
+            // 蓝牙串口和主板自带的 COM 口没有 USB 信息
+            return "串口（无 USB 信息）";
+        }
+        var vid = hex4(info.usbVendorId);
+        var pid = info.usbProductId == null ? "????" : hex4(info.usbProductId);
+        var id = vid + ":" + pid;
+        var chip = SERIAL_CHIPS[id];
+        var vendor = SERIAL_VENDORS[info.usbVendorId];
+        var name;
+        if (chip) {
+            name = (vendor ? vendor + " " : "") + chip;
+        } else if (vendor) {
+            name = vendor + " 串口";
+        } else {
+            name = "未知串口";
+        }
+        return name + "（" + id + "）";
+    }
+
     return {
         BUILTIN_HINTS: BUILTIN_HINTS,
         looksBuiltIn: looksBuiltIn,
-        forKind: forKind
+        forKind: forKind,
+        serialPortLabel: serialPortLabel
     };
 })();
 
