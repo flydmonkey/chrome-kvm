@@ -2,7 +2,10 @@
 // 串口、分辨率、鼠标模式往往不一样，存成几份配置一键切换。
 // 只存「跟着被控机走」的字段。波特率和芯片工作模式记的是 CH9329 芯片自己的状态，
 // 和切到哪台机器无关，切换时保持当前值不动
+var I18n = typeof I18n !== "undefined" ? I18n : require("./i18n.js");
+
 var Profiles = (function () {
+    var t = I18n.t;
     var STORAGE_KEY = "chrome-kvm-profiles";
     var MAX_PROFILES = 20;
     var MAX_NAME_LENGTH = 20;
@@ -84,13 +87,13 @@ var Profiles = (function () {
     function saveAs(state, name, settings) {
         var clean = normalizeName(name);
         if (!clean) {
-            return {error: "配置名不能为空"};
+            return {error: t("profile.error.emptyName")};
         }
         var next = normalize(state);
         var at = indexOf(next, clean);
         if (at === -1) {
             if (next.profiles.length >= MAX_PROFILES) {
-                return {error: "最多保存 " + MAX_PROFILES + " 份配置"};
+                return {error: t("profile.error.tooMany", {max: MAX_PROFILES})};
             }
             next.profiles.push({name: clean, settings: snapshot(settings)});
         } else {
@@ -118,7 +121,7 @@ var Profiles = (function () {
         var next = normalize(state);
         var at = indexOf(next, name);
         if (at === -1) {
-            return {error: "找不到配置「" + name + "」"};
+            return {error: t("profile.error.notFound", {name: name})};
         }
         var saved = snapshot(next.profiles[at].settings);
         var merged = Object.assign({}, current || {}, saved);
@@ -148,7 +151,7 @@ var Profiles = (function () {
         if (settings.resolution && settings.resolution.width && settings.resolution.height) {
             parts.push(settings.resolution.width + "×" + settings.resolution.height);
         }
-        parts.push(settings.mouseClickMode === "relative" ? "相对鼠标" : "绝对鼠标");
+        parts.push(t(settings.mouseClickMode === "relative" ? "profile.summary.relative" : "profile.summary.absolute"));
         if (settings.video && settings.video.label) {
             parts.push(settings.video.label);
         }

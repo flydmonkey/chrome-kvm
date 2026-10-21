@@ -1,3 +1,5 @@
+var I18n = typeof I18n !== "undefined" ? I18n : require("./i18n.js");
+
 function Ch9329(writer, mouseAbsolute, reader) {
     // 协议 V1.3：主从式，每条命令都应等待芯片应答（原命令码 | 0x80 成功，| 0xC0 出错）
     this.ADDR = 0x00;
@@ -578,12 +580,12 @@ function Ch9329(writer, mouseAbsolute, reader) {
         if (Ch9329.BAUD_RATES.indexOf(baud) === -1) {
             return {
                 ok: false,
-                reason: "不支持的波特率 " + baud + "，写进去之后连接时探测不到，芯片会失联"
+                reason: I18n.t("chip.error.badBaud", {baud: baud})
             };
         }
         let cfg = await this.getParaCfg();
         if (!cfg) {
-            return {ok: false, reason: "读取芯片参数配置失败"};
+            return {ok: false, reason: I18n.t("chip.error.readConfig")};
         }
         if (this.readParaBaudRate(cfg) === baud) {
             return {ok: true, unchanged: true};
@@ -593,7 +595,7 @@ function Ch9329(writer, mouseAbsolute, reader) {
         next[0] = cfg[0] & 0x7f;
         next[1] = cfg[1] & 0x7f;
         if (next[0] > 0x03 || next[1] > 0x02) {
-            return {ok: false, reason: "芯片当前工作模式超出可设置范围，已放弃写入"};
+            return {ok: false, reason: I18n.t("chip.error.modeOutOfRange")};
         }
         let o = this.PARA_CFG_BAUD_OFFSET;
         next[o] = (baud >>> 24) & 0xff;
@@ -602,8 +604,7 @@ function Ch9329(writer, mouseAbsolute, reader) {
         next[o + 3] = baud & 0xff;
         let result = await this.setParaCfg(next);
         if (!result.ok) {
-            let status = result.status == null ? "无应答" : "0x" + result.status.toString(16);
-            return {ok: false, reason: "写入参数配置失败（" + status + "）"};
+            return {ok: false, reason: Ch9329.writeConfigFailure(result.status)};
         }
         return {ok: true};
     }
@@ -619,11 +620,11 @@ function Ch9329(writer, mouseAbsolute, reader) {
     this.setWorkingMode = async function (mode) {
         // 不能只比大小：null >= 0 是 true，会被 Uint8Array 悄悄当成模式 0 写进芯片
         if (!Number.isInteger(mode) || mode < 0x00 || mode > 0x03) {
-            return {ok: false, reason: "工作模式只能是 0-3"};
+            return {ok: false, reason: I18n.t("chip.error.badMode")};
         }
         let cfg = await this.getParaCfg();
         if (!cfg) {
-            return {ok: false, reason: "读取芯片参数配置失败"};
+            return {ok: false, reason: I18n.t("chip.error.readConfig")};
         }
         if (this.readParaWorkingMode(cfg) === mode) {
             return {ok: true, unchanged: true};
@@ -633,12 +634,11 @@ function Ch9329(writer, mouseAbsolute, reader) {
         // 串口模式同样可能带 0x80，而设置命令只接受 0x00-0x02
         next[1] = cfg[1] & 0x7f;
         if (next[1] > 0x02) {
-            return {ok: false, reason: "芯片当前串口模式超出可设置范围，已放弃写入"};
+            return {ok: false, reason: I18n.t("chip.error.serialModeOutOfRange")};
         }
         let result = await this.setParaCfg(next);
         if (!result.ok) {
-            let status = result.status == null ? "无应答" : "0x" + result.status.toString(16);
-            return {ok: false, reason: "写入参数配置失败（" + status + "）"};
+            return {ok: false, reason: Ch9329.writeConfigFailure(result.status)};
         }
         return {ok: true};
     }
@@ -1275,21 +1275,27 @@ Ch9329.connect = async function (port, baudRates, mouseAbsolute) {
     };
 }
 
+Ch9329.writeConfigFailure = function (status) {
+    return I18n.t("chip.error.writeConfig", {
+        status: status == null ? I18n.t("chip.noReply") : "0x" + status.toString(16)
+    });
+}
+
 // 把探测结果翻成一句人话，给界面提示用
 Ch9329.describeAttempts = function (attempts) {
     if (!attempts || !attempts.length) {
-        return "没有可尝试的波特率";
+        return I18n.t("chip.attempt.none");
     }
     return attempts.map(function (a) {
         if (a.outcome === "open-failed") {
             let message = a.error && a.error.message ? a.error.message : String(a.error);
-            return a.baudRate + " 打不开串口（" + message + "）";
+            return I18n.t("chip.attempt.openFailed", {baud: a.baudRate, message: message});
         }
         if (a.outcome === "no-reply") {
-            return a.baudRate + " 打开成功但芯片无应答";
+            return I18n.t("chip.attempt.noReply", {baud: a.baudRate});
         }
-        return a.baudRate + " 正常";
-    }).join("；");
+        return I18n.t("chip.attempt.ok", {baud: a.baudRate});
+    }).join(I18n.t("chip.attempt.separator"));
 }
 
 // 全部候选波特率都连不上时，说清到底卡在哪一步。
@@ -1302,13 +1308,9 @@ Ch9329.explainConnectFailure = function (attempts) {
         return a.outcome === "open-failed";
     });
     if (!allOpenFailed) {
-        return "连接 CH9329 失败。\n\n详细信息：" + detail;
+        return I18n.t("chip.connect.failed", {detail: detail});
     }
-    return "打不开串口。\n\n"
-        + "串口是独占的，同一个设备同时只能被一个页面打开。请关掉其它开着本站的"
-        + "标签页（尤其是设置页），只留这一个，然后刷新重试。\n\n"
-        + "都关了还不行的话，把 CH9329 拔下来重插。\n\n"
-        + "详细信息：" + detail;
+    return I18n.t("chip.connect.busy", {detail: detail});
 }
 
 // ===== 查表常量：不可变，放在实例外面，避免每次 new 都重建 =====

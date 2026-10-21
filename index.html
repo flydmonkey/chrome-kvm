@@ -636,16 +636,16 @@
 <!-- 图标用内联 SVG：emoji 在各系统上渲染差异太大，且语义常对不上 -->
 <div class="floating-toolbar hidden">
     <button onclick="refreshVideoStatus()" id="videoStatusButton" class="status-indicator status-idle"
-            aria-label="视频状态">
+            aria-label="视频状态" data-i18n-aria-label="toolbar.videoStatus">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
             <rect x="2" y="6" width="14" height="12" rx="2"/>
             <path d="M22 8l-6 4 6 4V8z"/>
         </svg>
-        <span class="tooltip" id="videoStatusTooltip">未打开视频</span>
+        <span class="tooltip" id="videoStatusTooltip" data-i18n="status.video.notOpen">未打开视频</span>
     </button>
     <button onclick="refreshStatus()" id="inputStatusButton" class="status-indicator status-idle"
-            aria-label="键鼠状态">
+            aria-label="键鼠状态" data-i18n-aria-label="toolbar.inputStatus">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
             <rect x="1" y="8" width="14" height="10" rx="2"/>
@@ -656,13 +656,13 @@
             <rect x="17" y="6" width="6" height="12" rx="3"/>
             <path d="M20 8.5v2"/>
         </svg>
-        <span class="tooltip" id="inputStatusTooltip">未连接串口</span>
+        <span class="tooltip" id="inputStatusTooltip" data-i18n="status.serial.notConnected">未连接串口</span>
     </button>
-    <div class="lock-lights" id="lockLights" role="group" aria-label="键盘指示灯" hidden></div>
+    <div class="lock-lights" id="lockLights" role="group" aria-label="键盘指示灯" data-i18n-aria-label="toolbar.lockLights" hidden></div>
 
     <div class="toolbar-divider"></div>
 
-    <button onclick="toggleFullScreen()" id="fullscreenButton" aria-label="全屏">
+    <button onclick="toggleFullScreen()" id="fullscreenButton" aria-label="全屏" data-i18n-aria-label="fullscreen.enter">
         <svg class="icon-enter-fullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
@@ -677,29 +677,29 @@
             <path d="M3 16h3a2 2 0 0 1 2 2v3"/>
             <path d="M16 21v-3a2 2 0 0 1 2-2h3"/>
         </svg>
-        <span class="tooltip" id="fullscreenTooltip">全屏</span>
+        <span class="tooltip" id="fullscreenTooltip" data-i18n="fullscreen.enter">全屏</span>
     </button>
-    <button onclick="startRecord()" id="startRecordStatus" aria-label="录制">
+    <button onclick="startRecord()" id="startRecordStatus" aria-label="录制" data-i18n-aria-label="toolbar.record">
         <svg viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="12" cy="12" r="7" fill="currentColor"/>
         </svg>
-        <span class="tooltip">录制</span>
+        <span class="tooltip" data-i18n="toolbar.record">录制</span>
     </button>
-    <button onclick="stopRecord()" id="stopRecordStatus" style="display: none" aria-label="停止录制">
+    <button onclick="stopRecord()" id="stopRecordStatus" style="display: none" aria-label="停止录制" data-i18n-aria-label="toolbar.stopRecord">
         <svg viewBox="0 0 24 24" aria-hidden="true">
             <rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/>
         </svg>
-        <span class="tooltip">停止录制</span>
+        <span class="tooltip" data-i18n="toolbar.stopRecord">停止录制</span>
     </button>
-    <button onclick="takeScreenshot()" aria-label="截图">
+    <button onclick="takeScreenshot()" aria-label="截图" data-i18n-aria-label="toolbar.screenshot">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
             <path d="M4 8a2 2 0 0 1 2-2h1.5l1.5-2h6l1.5 2H18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/>
             <circle cx="12" cy="13" r="3.5"/>
         </svg>
-        <span class="tooltip">截图（保存 PNG 并复制）</span>
+        <span class="tooltip" data-i18n="toolbar.screenshotTip">截图（保存 PNG 并复制）</span>
     </button>
-    <button onclick="startOcrSelection()" id="ocrButton" aria-label="识别文字">
+    <button onclick="startOcrSelection()" id="ocrButton" aria-label="识别文字" data-i18n-aria-label="toolbar.ocr">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
             <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
@@ -709,9 +709,9 @@
             <path d="M8 8h8"/>
             <path d="M12 8v8"/>
         </svg>
-        <span class="tooltip">识别文字（框选画面）</span>
+        <span class="tooltip" data-i18n="toolbar.ocrTip">识别文字（框选画面）</span>
     </button>
-    <button onclick="toggleViewPanel()" id="viewButton" aria-label="画面显示" aria-expanded="false"
+    <button onclick="toggleViewPanel()" id="viewButton" aria-label="画面显示" data-i18n-aria-label="toolbar.view" aria-expanded="false"
             aria-controls="viewPanel">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
@@ -720,9 +720,9 @@
             <path d="M8 10.5h5"/>
             <path d="M10.5 8v5"/>
         </svg>
-        <span class="tooltip" id="viewTooltip">画面：适应窗口</span>
+        <span class="tooltip" id="viewTooltip" data-i18n="toolbar.viewDefault">画面：适应窗口</span>
     </button>
-    <button onclick="toggleProfilePanel()" id="profileButton" aria-label="切换被控机" aria-expanded="false"
+    <button onclick="toggleProfilePanel()" id="profileButton" aria-label="切换被控机" data-i18n-aria-label="toolbar.profile" aria-expanded="false"
             aria-controls="profilePanel" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
@@ -732,12 +732,12 @@
             <path d="M18 8h4v12h-4z"/>
             <path d="M20 16h.01"/>
         </svg>
-        <span class="tooltip" id="profileTooltip">被控机</span>
+        <span class="tooltip" id="profileTooltip" data-i18n="toolbar.profileShort">被控机</span>
     </button>
 
     <div class="toolbar-divider"></div>
 
-    <button onclick="ctrlAltDel()" aria-label="发送 Ctrl+Alt+Delete">
+    <button onclick="ctrlAltDel()" aria-label="发送 Ctrl+Alt+Delete" data-i18n-aria-label="toolbar.ctrlAltDel">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
             <rect x="2" y="4" width="20" height="16" rx="2"/>
@@ -749,7 +749,7 @@
         </svg>
         <span class="tooltip">Ctrl+Alt+Delete</span>
     </button>
-    <button onclick="toggleShortcutPanel()" id="shortcutButton" aria-label="快捷键" aria-expanded="false"
+    <button onclick="toggleShortcutPanel()" id="shortcutButton" aria-label="快捷键" data-i18n-aria-label="toolbar.shortcuts" aria-expanded="false"
             aria-controls="shortcutPanel">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
@@ -759,9 +759,9 @@
             <path d="M14 17.5h7"/>
             <path d="M17.5 14v7"/>
         </svg>
-        <span class="tooltip">快捷键</span>
+        <span class="tooltip" data-i18n="toolbar.shortcuts">快捷键</span>
     </button>
-    <button onclick="pasteText()" aria-label="粘贴文本">
+    <button onclick="pasteText()" aria-label="粘贴文本" data-i18n-aria-label="toolbar.paste">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
             <rect x="8" y="2" width="8" height="4" rx="1"/>
@@ -769,9 +769,9 @@
             <path d="M9 12h6"/>
             <path d="M9 16h4"/>
         </svg>
-        <span class="tooltip">粘贴文本</span>
+        <span class="tooltip" data-i18n="toolbar.paste">粘贴文本</span>
     </button>
-    <button onclick="toggleSoftKeyboard()" id="softKeyboardButton" aria-label="屏幕键盘" aria-pressed="false" hidden>
+    <button onclick="toggleSoftKeyboard()" id="softKeyboardButton" aria-label="屏幕键盘" data-i18n-aria-label="toolbar.softKeyboard" aria-pressed="false" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
             <rect x="2" y="5" width="20" height="11" rx="2"/>
@@ -782,9 +782,9 @@
             <path d="M8 12.5h8"/>
             <path d="M10 19.5l2 1.5 2-1.5"/>
         </svg>
-        <span class="tooltip">屏幕键盘</span>
+        <span class="tooltip" data-i18n="toolbar.softKeyboard">屏幕键盘</span>
     </button>
-    <button onclick="releaseAllInput()" aria-label="强制松开所有键">
+    <button onclick="releaseAllInput()" aria-label="强制松开所有键" data-i18n-aria-label="toolbar.releaseAll">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
             <rect x="2" y="4" width="20" height="16" rx="2"/>
@@ -793,29 +793,29 @@
             <path d="M7 15h10"/>
             <path d="M3 3l18 18"/>
         </svg>
-        <span class="tooltip">强制松开所有键</span>
+        <span class="tooltip" data-i18n="toolbar.releaseAll">强制松开所有键</span>
     </button>
 
     <div class="toolbar-divider"></div>
 
-    <button onclick="togglePowerPanel()" id="powerButton" aria-label="ATX 电源" aria-expanded="false"
+    <button onclick="togglePowerPanel()" id="powerButton" aria-label="ATX 电源" data-i18n-aria-label="toolbar.power" aria-expanded="false"
             aria-controls="powerPanel" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
             <path d="M12 3v9"/>
             <path d="M6.3 6.3a8 8 0 1 0 11.4 0"/>
         </svg>
-        <span class="tooltip">电源</span>
+        <span class="tooltip" data-i18n="toolbar.powerShort">电源</span>
     </button>
-    <button onclick="window.location.href='settings.html'" aria-label="设置">
+    <button onclick="window.location.href='settings.html'" aria-label="设置" data-i18n-aria-label="toolbar.settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>
-        <span class="tooltip">设置</span>
+        <span class="tooltip" data-i18n="toolbar.settings">设置</span>
     </button>
-    <button onclick="window.location.reload()" aria-label="刷新页面">
+    <button onclick="window.location.reload()" aria-label="刷新页面" data-i18n-aria-label="toolbar.reloadLabel">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
             <path d="M21 2v6h-6"/>
@@ -823,96 +823,102 @@
             <path d="M3 22v-6h6"/>
             <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
         </svg>
-        <span class="tooltip">刷新</span>
+        <span class="tooltip" data-i18n="toolbar.reload">刷新</span>
     </button>
 
     <div class="toolbar-divider"></div>
 
     <!-- 页面默认是收起状态，所以初始文案是「展开」 -->
-    <button class="toggle-button" onclick="toggleToolbar()" id="toggleButton" aria-label="展开工具栏">
+    <button class="toggle-button" onclick="toggleToolbar()" id="toggleButton" aria-label="展开工具栏" data-i18n-aria-label="toolbar.expandLabel">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
             <path d="M15 18l-6-6 6-6"/>
         </svg>
-        <span class="tooltip" id="toggleTooltip">展开</span>
+        <span class="tooltip" id="toggleTooltip" data-i18n="toolbar.expand">展开</span>
     </button>
 </div>
-<div class="tool-panel" id="shortcutPanel" role="dialog" aria-label="快捷键" hidden>
+<div class="tool-panel" id="shortcutPanel" role="dialog" aria-label="快捷键" data-i18n-aria-label="toolbar.shortcuts" hidden>
     <div class="shortcut-header">
-        <span>快捷键</span>
-        <button type="button" class="shortcut-close" onclick="toggleShortcutPanel(false)" aria-label="关闭">×</button>
+        <span data-i18n="toolbar.shortcuts">快捷键</span>
+        <button type="button" class="shortcut-close" onclick="toggleShortcutPanel(false)" aria-label="关闭" data-i18n-aria-label="common.close">×</button>
     </div>
     <div class="shortcut-body">
         <div id="shortcutGroups"></div>
-        <div class="shortcut-group-title"><span>添加自定义</span></div>
+        <div class="shortcut-group-title"><span data-i18n="shortcut.addCustom">添加自定义</span></div>
         <div class="shortcut-custom">
-            <input id="shortcutLabel" type="text" placeholder="名称（可选）" maxlength="20" autocomplete="off">
-            <input id="shortcutCombo" type="text" placeholder="如 Ctrl+Alt+F2" autocomplete="off" spellcheck="false">
-            <button type="button" onclick="addCustomShortcut()">添加</button>
+            <input id="shortcutLabel" type="text" placeholder="名称（可选）" data-i18n-placeholder="shortcut.namePlaceholder" maxlength="20" autocomplete="off">
+            <input id="shortcutCombo" type="text" placeholder="如 Ctrl+Alt+F2" data-i18n-placeholder="shortcut.comboPlaceholder" autocomplete="off" spellcheck="false">
+            <button type="button" onclick="addCustomShortcut()" data-i18n="common.add">添加</button>
         </div>
         <div class="shortcut-error" id="shortcutError" role="alert"></div>
-        <p class="shortcut-hint">用 + 连接同时按的键；多步用空格隔开，如「Win+R Enter」。修饰键可写 Ctrl、Shift、Alt、Win，Mac 上写 Cmd、Option。</p>
+        <p class="shortcut-hint" data-i18n="shortcut.syntaxHint">用 + 连接同时按的键；多步用空格隔开，如「Win+R Enter」。修饰键可写 Ctrl、Shift、Alt、Win，Mac 上写 Cmd、Option。</p>
     </div>
 </div>
 <div class="ocr-overlay" id="ocrOverlay" hidden>
     <div class="ocr-box" id="ocrBox" hidden></div>
-    <div class="ocr-overlay-hint">拖动框出要识别的文字，Esc 取消</div>
+    <div class="ocr-overlay-hint" data-i18n="ocr.overlayHint">拖动框出要识别的文字，Esc 取消</div>
 </div>
-<div class="tool-panel" id="ocrPanel" role="dialog" aria-label="识别文字" hidden>
+<div class="tool-panel" id="ocrPanel" role="dialog" aria-label="识别文字" data-i18n-aria-label="toolbar.ocr" hidden>
     <div class="shortcut-header">
-        <span>识别文字</span>
-        <button type="button" class="shortcut-close" onclick="toggleOcrPanel(false)" aria-label="关闭">×</button>
+        <span data-i18n="toolbar.ocr">识别文字</span>
+        <button type="button" class="shortcut-close" onclick="toggleOcrPanel(false)" aria-label="关闭" data-i18n-aria-label="common.close">×</button>
     </div>
     <div class="shortcut-body">
-        <div class="ocr-langs" id="ocrLangs" role="group" aria-label="识别语言"></div>
-        <textarea class="ocr-text" id="ocrText" aria-label="识别结果" spellcheck="false"
-                  placeholder="识别结果会显示在这里，可以先改再复制"></textarea>
+        <div class="ocr-langs" id="ocrLangs" role="group" aria-label="识别语言" data-i18n-aria-label="ocr.langsLabel"></div>
+        <textarea class="ocr-text" id="ocrText" aria-label="识别结果" data-i18n-aria-label="ocr.resultLabel" spellcheck="false"
+                  placeholder="识别结果会显示在这里，可以先改再复制" data-i18n-placeholder="ocr.resultPlaceholder"></textarea>
         <div class="ocr-actions">
-            <button type="button" id="ocrSelectAgain" onclick="startOcrSelection()">重新框选</button>
-            <button type="button" id="ocrWhole" onclick="recognizeWholeFrame()">整个画面</button>
-            <button type="button" id="ocrCopy" onclick="copyOcrText()">复制</button>
+            <button type="button" id="ocrSelectAgain" onclick="startOcrSelection()" data-i18n="ocr.selectAgain">重新框选</button>
+            <button type="button" id="ocrWhole" onclick="recognizeWholeFrame()" data-i18n="ocr.wholeFrame">整个画面</button>
+            <button type="button" id="ocrCopy" onclick="copyOcrText()" data-i18n="common.copy">复制</button>
         </div>
-        <p class="shortcut-hint">在本机识别，画面不会上传。改了语言会按新语言重新识别上一块区域。</p>
+        <p class="shortcut-hint" data-i18n="ocr.privacyHint">在本机识别，画面不会上传。改了语言会按新语言重新识别上一块区域。</p>
     </div>
 </div>
-<input class="soft-keyboard" id="softKeyboard" type="text" aria-label="屏幕键盘输入" autocomplete="off"
+<input class="soft-keyboard" id="softKeyboard" type="text" aria-label="屏幕键盘输入" data-i18n-aria-label="toolbar.softKeyboardInput" autocomplete="off"
        autocorrect="off" autocapitalize="off" spellcheck="false">
-<div class="tool-panel view-panel" id="viewPanel" role="dialog" aria-label="画面显示" hidden>
+<div class="tool-panel view-panel" id="viewPanel" role="dialog" aria-label="画面显示" data-i18n-aria-label="toolbar.view" hidden>
     <div class="shortcut-header">
-        <span>画面显示</span>
-        <button type="button" class="shortcut-close" onclick="toggleViewPanel(false)" aria-label="关闭">×</button>
+        <span data-i18n="toolbar.view">画面显示</span>
+        <button type="button" class="shortcut-close" onclick="toggleViewPanel(false)" aria-label="关闭" data-i18n-aria-label="common.close">×</button>
     </div>
-    <div class="view-options" id="viewOptions" role="radiogroup" aria-label="显示方式"></div>
+    <div class="view-options" id="viewOptions" role="radiogroup" aria-label="显示方式" data-i18n-aria-label="view.modesLabel"></div>
 </div>
-<div class="tool-panel view-panel" id="profilePanel" role="dialog" aria-label="切换被控机" hidden>
+<div class="tool-panel view-panel" id="profilePanel" role="dialog" aria-label="切换被控机" data-i18n-aria-label="toolbar.profile" hidden>
     <div class="shortcut-header">
-        <span>切换被控机</span>
-        <button type="button" class="shortcut-close" onclick="toggleProfilePanel(false)" aria-label="关闭">×</button>
+        <span data-i18n="toolbar.profile">切换被控机</span>
+        <button type="button" class="shortcut-close" onclick="toggleProfilePanel(false)" aria-label="关闭" data-i18n-aria-label="common.close">×</button>
     </div>
-    <div class="view-options" id="profileOptions" role="radiogroup" aria-label="被控机配置"></div>
-    <p class="profile-hint">切换会按那份配置重开采集卡和键鼠。新增、修改配置请到 <a href="settings.html">设置页</a>。</p>
+    <div class="view-options" id="profileOptions" role="radiogroup" aria-label="被控机配置" data-i18n-aria-label="profile.optionsLabel"></div>
+    <p class="profile-hint"><span data-i18n="profile.panelHint">切换会按那份配置重开采集卡和键鼠。</span> <a href="settings.html" data-i18n="profile.manageLink">到设置页新增、修改配置</a></p>
 </div>
-<div class="tool-panel view-panel" id="powerPanel" role="dialog" aria-label="ATX 电源" hidden>
+<div class="tool-panel view-panel" id="powerPanel" role="dialog" aria-label="ATX 电源" data-i18n-aria-label="toolbar.power" hidden>
     <div class="shortcut-header">
-        <span>ATX 电源</span>
-        <button type="button" class="shortcut-close" onclick="togglePowerPanel(false)" aria-label="关闭">×</button>
+        <span data-i18n="toolbar.power">ATX 电源</span>
+        <button type="button" class="shortcut-close" onclick="togglePowerPanel(false)" aria-label="关闭" data-i18n-aria-label="common.close">×</button>
     </div>
     <div class="view-options">
         <button type="button" class="view-option" id="powerShort" onclick="pressPower('short')">
-            <span>按一下电源键</span>
-            <span class="view-option-hint">开机；开着时让系统按它的设置关机或睡眠</span>
+            <span data-i18n="atx.press.short">按一下电源键</span>
+            <span class="view-option-hint" data-i18n="power.short.hint">开机；开着时让系统按它的设置关机或睡眠</span>
         </button>
         <button type="button" class="view-option power-danger" id="powerLong" onclick="pressPower('long')">
-            <span>长按强制关机</span>
-            <span class="view-option-hint" id="powerLongHint">按住 6 秒，等于拔电，没保存的东西会丢</span>
+            <span data-i18n="power.long.title">长按强制关机</span>
+            <span class="view-option-hint" id="powerLongHint" data-i18n="power.long.hint">按住 6 秒，等于拔电，没保存的东西会丢</span>
         </button>
         <button type="button" class="view-option power-danger" id="powerReset" onclick="pressPower('reset')" hidden>
-            <span>按一下复位键</span>
-            <span class="view-option-hint" id="powerResetHint">立即重启，等于按机箱上的重启键，没保存的东西会丢</span>
+            <span data-i18n="atx.press.reset">按一下复位键</span>
+            <span class="view-option-hint" id="powerResetHint" data-i18n="power.reset.hint">立即重启，等于按机箱上的重启键，没保存的东西会丢</span>
         </button>
     </div>
-    <p class="profile-hint">通过 USB 继电器按机箱电源键。继电器在 <a href="settings.html">设置页</a> 里选。</p>
+    <p class="profile-hint"><span data-i18n="power.panelHint">通过 USB 继电器按机箱电源键。</span> <a href="settings.html" data-i18n="power.pickRelay">到设置页选继电器</a></p>
 </div>
+<script src="i18n.js"></script>
+<script src="locales/zh-CN.js"></script>
+<script src="locales/zh-TW.js"></script>
+<script src="locales/en.js"></script>
+<script src="locales/ja.js"></script>
+<script src="locales/ko.js"></script>
 <script src="settings-store.js"></script>
 <script src="profiles.js"></script>
 <script src="status-text.js"></script>

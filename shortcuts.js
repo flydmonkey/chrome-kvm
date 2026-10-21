@@ -1,6 +1,10 @@
 // 快捷键面板的纯逻辑：组合键文本解析、预设列表、自定义快捷键的存取。
 // 不碰 DOM 和串口，方便单测；按键名用 KeyboardEvent.code，和 Ch9329.KEYBOARD_MAP 对得上
+var I18n = typeof I18n !== "undefined" ? I18n : require("./i18n.js");
+
 var Shortcuts = (function () {
+    var t = I18n.t;
+
     // 修饰键别名 -> [code, 显示名]。macOS 用户习惯写 Cmd/Option，显示时保留原叫法
     var MODIFIERS = {
         ctrl: ["ControlLeft", "Ctrl"],
@@ -98,20 +102,20 @@ var Shortcuts = (function () {
     function parseCombo(text) {
         var raw = String(text == null ? "" : text).trim();
         if (!raw) {
-            return {error: "组合键是空的"};
+            return {error: t("shortcut.error.emptyCombo")};
         }
         var tokens = raw.split("+").map(function (part) {
             return part.trim();
         });
         if (tokens.some(function (part) { return !part; })) {
-            return {error: "「" + raw + "」里有多余的 +"};
+            return {error: t("shortcut.error.extraPlus", {combo: raw})};
         }
         var modifiers = [];
         var keys = [];
         for (var i = 0; i < tokens.length; i++) {
             var key = resolveToken(tokens[i]);
             if (!key) {
-                return {error: "不认识的按键「" + tokens[i] + "」"};
+                return {error: t("shortcut.error.unknownKey", {key: tokens[i]})};
             }
             var bucket = key.modifier ? modifiers : keys;
             var seen = bucket.some(function (item) { return item.code === key.code; });
@@ -120,7 +124,7 @@ var Shortcuts = (function () {
             }
         }
         if (keys.length > MAX_KEYS) {
-            return {error: "一次最多同时按 " + MAX_KEYS + " 个普通键"};
+            return {error: t("shortcut.error.tooManyKeys", {max: MAX_KEYS})};
         }
         // 修饰键排在前面：发送时要先按住修饰键，再按普通键
         var all = modifiers.concat(keys);
@@ -134,11 +138,11 @@ var Shortcuts = (function () {
     function parseSequence(text) {
         var raw = String(text == null ? "" : text).trim();
         if (!raw) {
-            return {error: "快捷键是空的"};
+            return {error: t("shortcut.error.empty")};
         }
         var parts = raw.split(/[\s,，]+/).filter(Boolean);
         if (parts.length > MAX_STEPS) {
-            return {error: "一个快捷键最多 " + MAX_STEPS + " 步"};
+            return {error: t("shortcut.error.tooManySteps", {max: MAX_STEPS})};
         }
         var steps = [];
         var texts = [];
@@ -158,31 +162,31 @@ var Shortcuts = (function () {
         {
             title: "Windows",
             items: [
-                {label: "开始菜单", combo: "Win"},
-                {label: "锁屏", combo: "Win+L"},
-                {label: "显示桌面", combo: "Win+D"},
-                {label: "运行", combo: "Win+R"},
-                {label: "资源管理器", combo: "Win+E"},
-                {label: "任务管理器", combo: "Ctrl+Shift+Esc"},
-                {label: "切换窗口", combo: "Alt+Tab"},
-                {label: "关闭窗口", combo: "Alt+F4"},
-                {label: "截图工具", combo: "Win+Shift+S"}
+                {label: t("shortcut.win.start"), combo: "Win"},
+                {label: t("shortcut.win.lock"), combo: "Win+L"},
+                {label: t("shortcut.win.desktop"), combo: "Win+D"},
+                {label: t("shortcut.win.run"), combo: "Win+R"},
+                {label: t("shortcut.win.explorer"), combo: "Win+E"},
+                {label: t("shortcut.win.taskManager"), combo: "Ctrl+Shift+Esc"},
+                {label: t("shortcut.win.switchWindow"), combo: "Alt+Tab"},
+                {label: t("shortcut.win.closeWindow"), combo: "Alt+F4"},
+                {label: t("shortcut.win.snip"), combo: "Win+Shift+S"}
             ]
         },
         {
             title: "macOS",
             items: [
-                {label: "聚焦搜索", combo: "Cmd+Space"},
-                {label: "切换应用", combo: "Cmd+Tab"},
-                {label: "退出应用", combo: "Cmd+Q"},
-                {label: "强制退出", combo: "Cmd+Option+Esc"},
-                {label: "锁屏", combo: "Ctrl+Cmd+Q"}
+                {label: t("shortcut.mac.spotlight"), combo: "Cmd+Space"},
+                {label: t("shortcut.mac.switchApp"), combo: "Cmd+Tab"},
+                {label: t("shortcut.mac.quitApp"), combo: "Cmd+Q"},
+                {label: t("shortcut.mac.forceQuit"), combo: "Cmd+Option+Esc"},
+                {label: t("shortcut.mac.lock"), combo: "Ctrl+Cmd+Q"}
             ]
         },
         {
             title: "Linux",
             items: [
-                {label: "终端", combo: "Ctrl+Alt+T"},
+                {label: t("shortcut.linux.terminal"), combo: "Ctrl+Alt+T"},
                 {label: "TTY1", combo: "Ctrl+Alt+F1"},
                 {label: "TTY2", combo: "Ctrl+Alt+F2"},
                 {label: "TTY3", combo: "Ctrl+Alt+F3"},
@@ -193,25 +197,25 @@ var Shortcuts = (function () {
             ]
         },
         {
-            title: "开机 / BIOS",
+            title: t("shortcut.group.boot"),
             repeatable: true,
             items: [
-                {label: "进 BIOS（台式机）", combo: "Del"},
-                {label: "进 BIOS（笔记本）", combo: "F2"},
-                {label: "启动菜单", combo: "F12"},
-                {label: "启动菜单", combo: "F11"},
-                {label: "启动菜单", combo: "F8"},
-                {label: "退出 / 返回", combo: "Esc"}
+                {label: t("shortcut.boot.biosDesktop"), combo: "Del"},
+                {label: t("shortcut.boot.biosLaptop"), combo: "F2"},
+                {label: t("shortcut.boot.menu"), combo: "F12"},
+                {label: t("shortcut.boot.menu"), combo: "F11"},
+                {label: t("shortcut.boot.menu"), combo: "F8"},
+                {label: t("shortcut.boot.escape"), combo: "Esc"}
             ]
         },
         {
-            title: "其他",
+            title: t("shortcut.group.other"),
             items: [
-                {label: "全屏截图", combo: "PrtSc"},
-                {label: "暂停", combo: "Pause"},
-                {label: "滚动锁定", combo: "ScrollLock"},
-                {label: "数字锁定", combo: "NumLock"},
-                {label: "右键菜单", combo: "Menu"}
+                {label: t("shortcut.other.printScreen"), combo: "PrtSc"},
+                {label: t("shortcut.other.pause"), combo: "Pause"},
+                {label: t("shortcut.other.scrollLock"), combo: "ScrollLock"},
+                {label: t("shortcut.other.numLock"), combo: "NumLock"},
+                {label: t("shortcut.other.menu"), combo: "Menu"}
             ]
         }
     ];

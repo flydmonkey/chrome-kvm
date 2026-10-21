@@ -1,6 +1,10 @@
 // 设置页下拉框里该列哪些设备。enumerateDevices 会把内置摄像头、
 // 各种虚拟麦克风一起报上来，全列出来反而不好找采集卡。
+var I18n = typeof I18n !== "undefined" ? I18n : require("./i18n.js");
+
 var DeviceFilter = (function () {
+    var t = I18n.t;
+
     // 注意中文 Windows 会把音频输入命名成「麦克风 (设备名)」，采集卡也可能中招，
     // 所以过滤掉的设备必须能靠下面的兜底重新出现
     var BUILTIN_HINTS = {
@@ -60,7 +64,7 @@ var DeviceFilter = (function () {
     function serialPortLabel(info) {
         if (!info || info.usbVendorId == null) {
             // 蓝牙串口和主板自带的 COM 口没有 USB 信息
-            return "串口（无 USB 信息）";
+            return t("serialPort.noUsbInfo");
         }
         var vid = hex4(info.usbVendorId);
         var pid = info.usbProductId == null ? "????" : hex4(info.usbProductId);
@@ -71,11 +75,11 @@ var DeviceFilter = (function () {
         if (chip) {
             name = (vendor ? vendor + " " : "") + chip;
         } else if (vendor) {
-            name = vendor + " 串口";
+            name = t("serialPort.vendor", {vendor: vendor});
         } else {
-            name = "未知串口";
+            name = t("serialPort.unknown");
         }
-        return name + "（" + id + "）";
+        return t("serialPort.withId", {name: name, id: id});
     }
 
     return {

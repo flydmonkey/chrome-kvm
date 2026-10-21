@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>设置 - Chrome KVM</title>
+    <title data-i18n="settings.pageTitle">设置 - Chrome KVM</title>
     <meta name="description" content="Chrome KVM">
     <link rel="icon" href="app.svg" type="image/svg+xml">
     <link rel="alternate icon" href="app-192.png">
@@ -26,6 +26,23 @@
             font: 14px/1.6 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
             color: #e4e4e7;
             background-color: #131316;
+        }
+
+        /* 雅黑的日文、繁体字形是简体写法，换成各自的系统字体 */
+        html:lang(zh-TW) body {
+            font-family: system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+        }
+
+        html:lang(ja) body {
+            font-family: system-ui, -apple-system, "Segoe UI", "Yu Gothic UI", Meiryo, sans-serif;
+        }
+
+        html:lang(ko) body {
+            font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+        }
+
+        html:lang(en) body {
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
         }
 
         /* 和控制页工具栏同一套：半透明毛玻璃面板 */
@@ -80,6 +97,10 @@
 
         .field {
             margin-bottom: 14px;
+        }
+
+        .language-field {
+            margin-top: 16px;
         }
 
         label {
@@ -260,8 +281,12 @@
 <body>
 <div class="notice-stack" id="noticeStack" role="status" aria-live="polite"></div>
 <div class="form-container">
-    <h2>设备设置</h2>
-    <p class="page-hint">选择采集卡和 CH9329 控制器，保存后回到控制页。浏览器的设备授权是按网址记的，换网址要重新授权。</p>
+    <h2 data-i18n="settings.heading">设备设置</h2>
+    <p class="page-hint" data-i18n="settings.pageHint">选择采集卡和 CH9329 控制器，保存后回到控制页。浏览器的设备授权是按网址记的，换网址要重新授权。</p>
+    <div class="field language-field">
+        <label for="languageSelect" data-i18n="settings.language">界面语言（Language）</label>
+        <select id="languageSelect" name="languageSelect" onchange="changeLanguage()"></select>
+    </div>
 
     <div class="section">
         <div class="section-title">
@@ -271,26 +296,26 @@
                 <path d="M8 21h8"/>
                 <path d="M12 16v5"/>
             </svg>
-            被控机配置
+            <span data-i18n="settings.section.profiles">被控机配置</span>
         </div>
         <div class="field">
-            <label for="profileSelect">当前配置</label>
+            <label for="profileSelect" data-i18n="settings.profile.current">当前配置</label>
             <select id="profileSelect" name="profileSelect" onchange="switchProfile()"></select>
-            <p class="hint">
+            <p class="hint" data-i18n="settings.profile.hint">
                 接了多台被控机时，每台的采集卡、串口、分辨率、鼠标模式各存一份，选中即切换。
                 选中某份配置后点「保存」会同步更新它。波特率和芯片工作模式是芯片自己的状态，不随配置切换。
                 控制页工具栏也能快速切换。
             </p>
         </div>
         <div class="actions">
-            <button type="button" class="confirm-button" onclick="saveProfileAs()">按当前表单另存为…</button>
-            <button type="button" class="confirm-button" id="profileDelete" onclick="deleteProfile(this)">删除此配置</button>
+            <button type="button" class="confirm-button" onclick="saveProfileAs()" data-i18n="settings.profile.saveAs">按当前表单另存为…</button>
+            <button type="button" class="confirm-button" id="profileDelete" onclick="deleteProfile(this)" data-i18n="settings.profile.delete">删除此配置</button>
         </div>
         <div class="profile-name-row" id="profileNameRow" hidden>
             <input type="text" id="profileName" maxlength="20" autocomplete="off"
-                   placeholder="给这台被控机起个名字，同名会覆盖" aria-label="配置名">
-            <button type="button" class="confirm-button primary" onclick="confirmProfileName()">保存</button>
-            <button type="button" class="confirm-button" onclick="cancelProfileName()">取消</button>
+                   placeholder="给这台被控机起个名字，同名会覆盖" data-i18n-placeholder="settings.profile.namePlaceholder" aria-label="配置名" data-i18n-aria-label="settings.profile.nameLabel">
+            <button type="button" class="confirm-button primary" onclick="confirmProfileName()" data-i18n="common.save">保存</button>
+            <button type="button" class="confirm-button" onclick="cancelProfileName()" data-i18n="common.cancel">取消</button>
         </div>
     </div>
 
@@ -302,20 +327,18 @@
                 <rect x="2" y="6" width="14" height="12" rx="2"/>
                 <path d="M22 8l-6 4 6 4V8z"/>
             </svg>
-            视频采集
+            <span data-i18n="settings.section.video">视频采集</span>
         </div>
         <div class="field">
-            <label for="choice1">视频（<a href="http://e.tb.cn/h.TfXLcXooYTXSM4E?tk=XEqJ3xEBB9g" target="_blank">USB
-                视频采集卡</a>）</label>
+            <label for="choice1"><span data-i18n="settings.used.video">视频</span> (<a href="http://e.tb.cn/h.TfXLcXooYTXSM4E?tk=XEqJ3xEBB9g" target="_blank" data-i18n="settings.captureCardLink">USB 视频采集卡</a>)</label>
             <select id="choice1" name="choice1"></select>
         </div>
         <div class="field">
-            <label for="choice3">音频（<a href="http://e.tb.cn/h.TfXLcXooYTXSM4E?tk=XEqJ3xEBB9g" target="_blank">USB
-                视频采集卡</a>）</label>
+            <label for="choice3"><span data-i18n="settings.used.audio">音频</span> (<a href="http://e.tb.cn/h.TfXLcXooYTXSM4E?tk=XEqJ3xEBB9g" target="_blank" data-i18n="settings.captureCardLink">USB 视频采集卡</a>)</label>
             <select id="choice3" name="choice3"></select>
         </div>
         <div class="field">
-            <label for="choice4">屏幕分辨率</label>
+            <label for="choice4" data-i18n="settings.resolution">屏幕分辨率</label>
             <select id="choice4" name="choice4">
                 <option value="4096x2160">4096x2160</option>
                 <option value="3840x2160">3840x2160</option>
@@ -339,18 +362,18 @@
                 <option value="1024x768">1024x768</option>
                 <option value="800x600">800x600</option>
             </select>
-            <p class="hint">填被控端系统里实际设置的分辨率</p>
+            <p class="hint" data-i18n="settings.resolution.hint">填被控端系统里实际设置的分辨率</p>
         </div>
         <div class="field">
-            <label for="frameRate">采集帧率</label>
+            <label for="frameRate" data-i18n="settings.frameRate">采集帧率</label>
             <select id="frameRate" name="frameRate">
-                <option value="0" selected>默认（浏览器决定，Chrome 通常是 30）</option>
+                <option value="0" selected data-i18n="settings.frameRate.default">默认（浏览器决定，Chrome 通常是 30）</option>
                 <option value="30">30 fps</option>
                 <option value="60">60 fps</option>
             </select>
-            <p class="hint">60 fps 画面更跟手，但要采集卡支持。不少采集卡在 1080p 下只有 30 fps，选了 60 会自动退回，分辨率优先</p>
+            <p class="hint" data-i18n="settings.frameRate.hint">60 fps 画面更跟手，但要采集卡支持。不少采集卡在 1080p 下只有 30 fps，选了 60 会自动退回，分辨率优先</p>
         </div>
-        <button type="button" class="confirm-button block" onclick="authMedia()">授权视频采集卡</button>
+        <button type="button" class="confirm-button block" onclick="authMedia()" data-i18n="settings.authMedia">授权视频采集卡</button>
     </div>
 
     <div class="section">
@@ -366,66 +389,63 @@
                 <rect x="17" y="6" width="6" height="12" rx="3"/>
                 <path d="M20 8.5v2"/>
             </svg>
-            键鼠控制器
+            <span data-i18n="settings.section.serial">键鼠控制器</span>
         </div>
         <div class="field">
-            <label for="choice2">串口（<a href="http://e.tb.cn/h.TfXoUbjkCYXwmeW?tk=7Rlp3xEAdqD" target="_blank">CH9329
-                键鼠控制器</a>）</label>
+            <label for="choice2"><span data-i18n="settings.serialPort">串口</span> (<a href="http://e.tb.cn/h.TfXoUbjkCYXwmeW?tk=7Rlp3xEAdqD" target="_blank" data-i18n="settings.controllerLink">CH9329 键鼠控制器</a>)</label>
             <select id="choice2" name="choice2"></select>
-            <p class="hint">Linux 下需要先给设备加权限：<code>chmod 666 /dev/ttyUSB0</code></p>
+            <p class="hint"><span data-i18n="settings.linuxHint">Linux 下需要先给设备加权限：</span><code>chmod 666 /dev/ttyUSB0</code></p>
         </div>
         <div class="field">
-            <label for="choice5">鼠标按键模式</label>
+            <label for="choice5" data-i18n="settings.mouseMode">鼠标按键模式</label>
             <select id="choice5" name="choice5">
-                <option value="absolute" selected>绝对模式</option>
-                <option value="relative">相对模式</option>
+                <option value="absolute" selected data-i18n="settings.mouseMode.absolute">绝对模式</option>
+                <option value="relative" data-i18n="settings.mouseMode.relative">相对模式</option>
             </select>
-            <p class="hint" id="mouseModeHint">桌面用绝对模式；BIOS、Android 等不认绝对鼠标的被控端用相对模式（Android 下绝对鼠标不显示指针）。相对模式需要芯片工作在模式 2，否则 macOS 下点不动</p>
+            <p class="hint" id="mouseModeHint" data-i18n="settings.mouseMode.hint">桌面用绝对模式；BIOS、Android 等不认绝对鼠标的被控端用相对模式（Android 下绝对鼠标不显示指针）。相对模式需要芯片工作在模式 2，否则 macOS 下点不动</p>
         </div>
         <!-- 只在相对模式下出现，由 syncRelativeSpeedVisibility() 控制。默认先藏着，
              免得页面刚加载、脚本还没跑的时候闪一下 -->
         <div class="field" id="relativeSpeedField" style="display: none">
-            <label for="relativeSpeed">相对模式灵敏度</label>
+            <label for="relativeSpeed" data-i18n="change.relativeSpeed">相对模式灵敏度</label>
             <input type="number" id="relativeSpeed" name="relativeSpeed" value="1" min="0.1" max="10" step="0.1">
-            <p class="hint">
+            <p class="hint" data-i18n="settings.relativeSpeed.hint">
                 默认 1。
                 相对模式下发的是未经本机加速的原始鼠标计数（本机再加速一次会和被控端的加速叠加），
                 所以会比平时用桌面慢一截，调大这个值补回来。保存后已经打开的控制页立即生效。
             </p>
         </div>
         <div class="field">
-            <label for="choice6">串口波特率</label>
+            <label for="choice6" data-i18n="settings.baud">串口波特率</label>
             <select id="choice6" name="choice6">
                 <!-- 选项由 fillBaudOptions() 按 Ch9329.BAUD_RATES 生成，这里只是兜底 -->
                 <option value="9600">9600（芯片出厂默认）</option>
                 <option value="115200">115200</option>
             </select>
             <p class="hint" id="baudHint">
-                改波特率需要写进芯片，写入后断电重插 CH9329 才生效。
-                <strong>115200 以上只有 CH9329F 支持</strong>，原版 CH9329 写了会连不上；
-                串口那一端也要跟得上（CH340 到 2M，CH343 到 6M）。
-                KVM 的数据包只有十几字节，115200 已经够用，再高收益很小。
+                <span data-i18n="settings.baud.hint1">改波特率需要写进芯片，写入后断电重插 CH9329 才生效。</span>
+                <strong data-i18n="settings.baud.hint2">115200 以上只有 CH9329F 支持</strong><span data-i18n="settings.baud.hint3">，原版 CH9329 写了会连不上；串口那一端也要跟得上（CH340 到 2M，CH343 到 6M）。KVM 的数据包只有十几字节，115200 已经够用，再高收益很小。</span>
             </p>
         </div>
         <div class="field">
-            <label for="choice7">芯片工作模式</label>
+            <label for="choice7" data-i18n="settings.mode">芯片工作模式</label>
             <select id="choice7" name="choice7">
-                <option value="0">0：键盘 + 鼠标 + 自定义HID（出厂默认）</option>
-                <option value="2">2：键盘 + 鼠标（Linux / Android / macOS 建议）</option>
-                <option value="1">1：仅键盘</option>
-                <option value="3">3：仅自定义HID（无键鼠）</option>
+                <option value="0" data-i18n="settings.mode.0">0：键盘 + 鼠标 + 自定义HID（出厂默认）</option>
+                <option value="2" data-i18n="settings.mode.2">2：键盘 + 鼠标（Linux / Android / macOS 建议）</option>
+                <option value="1" data-i18n="settings.mode.1">1：仅键盘</option>
+                <option value="3" data-i18n="settings.mode.3">3：仅自定义HID（无键鼠）</option>
             </select>
-            <p class="hint" id="workingModeHint">
+            <p class="hint" id="workingModeHint" data-i18n="settings.mode.hint">
                 macOS 下模式 0 会导致相对模式点不动、绝对模式拖不动，改用模式 2 可解决。
                 这一项要点「写入工作模式」才会写进芯片，「保存」不写芯片。
                 写入后要断电重插才生效，被控端可能弹出键盘识别向导。
             </p>
         </div>
         <div class="actions">
-            <button type="button" class="confirm-button" onclick="authUsb()">授权控制器</button>
-            <button type="button" class="confirm-button" onclick="applyBaudRate()">写入波特率</button>
-            <button type="button" class="confirm-button" onclick="applyWorkingMode()">写入工作模式</button>
-            <button type="button" class="confirm-button" onclick="restoreDefaults(this)">恢复出厂配置</button>
+            <button type="button" class="confirm-button" onclick="authUsb()" data-i18n="settings.authUsb">授权控制器</button>
+            <button type="button" class="confirm-button" onclick="applyBaudRate()" data-i18n="settings.writeBaud">写入波特率</button>
+            <button type="button" class="confirm-button" onclick="applyWorkingMode()" data-i18n="settings.writeMode">写入工作模式</button>
+            <button type="button" class="confirm-button" onclick="restoreDefaults(this)" data-i18n="settings.restore">恢复出厂配置</button>
         </div>
     </div>
 
@@ -437,31 +457,31 @@
                 <path d="M12 3v9"/>
                 <path d="M6.3 6.3a8 8 0 1 0 11.4 0"/>
             </svg>
-            ATX 电源（可选）
+            <span data-i18n="settings.section.atx">ATX 电源（可选）</span>
         </div>
         <div class="field">
-            <label for="atxPort">继电器串口（LCUS 系列 USB 继电器）</label>
+            <label for="atxPort" data-i18n="settings.atx.port">继电器串口（LCUS 系列 USB 继电器）</label>
             <select id="atxPort" name="atxPort"></select>
-            <p class="hint">
+            <p class="hint" data-i18n="settings.atx.portHint">
                 继电器的常开触点（COM、NO）并接在主板前面板的电源键跳线（PWR_SW）上，机箱上的电源键照样能用。
                 继电器和 CH9329 多半都是 CH340，列表里名字一样也没关系：控制页会排除正在当键鼠用的那个。
             </p>
         </div>
         <div class="field">
-            <label for="atxChannel">继电器通道</label>
+            <label for="atxChannel" data-i18n="settings.atx.channelLabel">继电器通道</label>
             <select id="atxChannel" name="atxChannel"></select>
-            <p class="hint">单路继电器选 1。多路继电器选接了电源键的那一路</p>
+            <p class="hint" data-i18n="settings.atx.channelHint">单路继电器选 1。多路继电器选接了电源键的那一路</p>
         </div>
         <div class="field">
-            <label for="atxResetChannel">复位键通道</label>
+            <label for="atxResetChannel" data-i18n="settings.atx.resetLabel">复位键通道</label>
             <select id="atxResetChannel" name="atxResetChannel"></select>
-            <p class="hint">两路以上的继电器可以再接主板的 RESET 两根针，控制页电源面板会多一个「按一下复位键」。不能和电源键同一路</p>
+            <p class="hint" data-i18n="settings.atx.resetHint">两路以上的继电器可以再接主板的 RESET 两根针，控制页电源面板会多一个「按一下复位键」。不能和电源键同一路</p>
         </div>
-        <button type="button" class="confirm-button block" onclick="authUsb()">授权继电器</button>
+        <button type="button" class="confirm-button block" onclick="authUsb()" data-i18n="settings.authRelay">授权继电器</button>
     </div>
 
     <div class="section" id="savedSection" style="display: none">
-        <div class="section-title">当前已保存</div>
+        <div class="section-title" data-i18n="settings.section.saved">当前已保存</div>
         <p class="saved-line" id="usedVideo" style="display: none"></p>
         <p class="saved-line" id="usedAudio" style="display: none"></p>
         <p class="saved-line" id="usedUsb" style="display: none"></p>
@@ -470,11 +490,17 @@
 
     <div class="section">
         <div class="actions">
-            <button type="button" class="confirm-button" onclick="window.location.href='./index.html'">返回控制页</button>
-            <button type="button" class="confirm-button primary" onclick="save()">保存</button>
+            <button type="button" class="confirm-button" onclick="window.location.href='./index.html'" data-i18n="settings.back">返回控制页</button>
+            <button type="button" class="confirm-button primary" onclick="save()" data-i18n="common.save">保存</button>
         </div>
     </div>
 </div>
+<script src="i18n.js"></script>
+<script src="locales/zh-CN.js"></script>
+<script src="locales/zh-TW.js"></script>
+<script src="locales/en.js"></script>
+<script src="locales/ja.js"></script>
+<script src="locales/ko.js"></script>
 <script src="settings-store.js"></script>
 <script src="profiles.js"></script>
 <script src="page-logic.js"></script>

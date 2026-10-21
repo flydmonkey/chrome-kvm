@@ -1,13 +1,16 @@
 // OCR 文字识别里不碰 DOM、不碰识别引擎的那部分：框选区域怎么换算成画面像素、
 // 截下来的图怎么预处理、识别结果怎么整理、语言怎么选。引擎是 vendor/tesseract
 // 下的 Tesseract.js，完全在本机跑，画面不会发到任何服务器
+var I18n = typeof I18n !== "undefined" ? I18n : require("./i18n.js");
+
 var Ocr = (function () {
+    var t = I18n.t;
     var STORAGE_KEY = "chrome-kvm-ocr";
     var VENDOR_DIR = "vendor/tesseract/";
     var LANGUAGES = [
-        {id: "eng", label: "英文"},
-        {id: "chi_sim", label: "简体中文"},
-        {id: "chi_tra", label: "繁体中文"}
+        {id: "eng", label: t("ocr.lang.eng")},
+        {id: "chi_sim", label: t("ocr.lang.chiSim")},
+        {id: "chi_tra", label: t("ocr.lang.chiTra")}
     ];
     // 语言越多越慢；繁体默认不开，要用时在面板里勾上
     var DEFAULT_LANGS = ["eng", "chi_sim"];
@@ -207,15 +210,15 @@ var Ocr = (function () {
     }
 
     var STATUS_TEXT = {
-        "loading tesseract core": "正在加载识别引擎",
-        "initializing tesseract": "正在初始化识别引擎",
-        "loading language traineddata": "正在加载语言包",
-        "initializing api": "正在初始化识别引擎",
-        "recognizing text": "正在识别"
+        "loading tesseract core": "ocr.status.loadingCore",
+        "initializing tesseract": "ocr.status.initializing",
+        "loading language traineddata": "ocr.status.loadingLang",
+        "initializing api": "ocr.status.initializing",
+        "recognizing text": "ocr.status.recognizing"
     };
 
     function progressText(status, progress) {
-        var text = STATUS_TEXT[status] || "正在准备识别";
+        var text = t(STATUS_TEXT[status] || "ocr.status.preparing");
         if (status === "recognizing text" && typeof progress === "number") {
             text += " " + Math.round(clamp(progress, 0, 1) * 100) + "%";
         }

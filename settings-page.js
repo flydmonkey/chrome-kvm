@@ -1,5 +1,7 @@
 // 设置页的页面逻辑：枚举设备、填下拉框、写波特率、存配置。
-const NO_WEB_SERIAL = "当前浏览器不支持 Web Serial，无法连接 CH9329。请用桌面版 Chrome 或 Edge 打开。";
+I18n.apply();
+
+const NO_WEB_SERIAL = I18n.t("settings.noWebSerial");
 const CONFIRM_MS = 4000;
 
 // 提示统一走顶部提示条，不用 alert：同一时间只留一条，错误不自动消失
@@ -42,28 +44,28 @@ async function authUsb() {
         if (e && e.name === "NotFoundError") {
             return;
         }
-        notify("授权串口失败：" + (e && e.message ? e.message : String(e)), "error");
+        notify(I18n.t("settings.authSerialFailed", {message: e && e.message ? e.message : String(e)}), "error");
         return;
     }
-    Notices.flash("已授权串口，在下拉框里选中它后点「保存」");
+    Notices.flash(I18n.t("settings.authSerialDone"));
     window.location.reload();
 }
 
 function describeMediaError(e) {
     let name = e && e.name;
     if (name === "NotAllowedError") {
-        return "浏览器拒绝了摄像头/麦克风权限。点地址栏左侧的站点信息图标，把摄像头和麦克风改成「允许」后再试。";
+        return I18n.t("settings.media.denied");
     }
     if (name === "NotFoundError") {
-        return "没有找到视频采集设备。请确认采集卡已经插好。";
+        return I18n.t("settings.media.notFound");
     }
     if (name === "NotReadableError") {
-        return "采集卡被占用，打不开。请关掉正在使用它的其它程序或标签页（包括控制页）再试。";
+        return I18n.t("settings.media.busy");
     }
     if (name === "SecurityError" || !navigator.mediaDevices) {
-        return "当前页面不是安全上下文，浏览器不允许访问采集卡。请用 HTTPS 或 localhost 打开。";
+        return I18n.t("settings.media.insecure");
     }
-    return "授权采集卡失败：" + (e && e.message ? e.message : String(e));
+    return I18n.t("settings.media.failed", {message: e && e.message ? e.message : String(e)});
 }
 
 async function authMedia() {
@@ -91,7 +93,7 @@ async function authMedia() {
     stream.getTracks().forEach(function (track) {
         track.stop();
     });
-    Notices.flash("已授权采集卡，在下拉框里选中它后点「保存」");
+    Notices.flash(I18n.t("settings.authMediaDone"));
     window.location.reload();
 }
 
@@ -100,7 +102,7 @@ function fillDeviceOptions(selector, list, savedDeviceId) {
         let device = list[i];
         let option = document.createElement("option");
         option.setAttribute("value", device.deviceId);
-        option.innerText = device.label || ("未命名设备 " + String(device.deviceId).slice(0, 8));
+        option.innerText = device.label || I18n.t("settings.unnamedDevice", {id: String(device.deviceId).slice(0, 8)});
         if (savedDeviceId && device.deviceId === savedDeviceId) {
             option.setAttribute("selected", "selected");
         }
@@ -200,7 +202,7 @@ function renderAtx() {
     let portSelector = document.querySelector("#atxPort");
     let none = document.createElement("option");
     none.value = "";
-    none.textContent = "不使用";
+    none.textContent = I18n.t("settings.atx.none");
     portSelector.replaceChildren(none);
     if (navigator.serial) {
         navigator.serial.getPorts().then(function (ports) {
@@ -222,12 +224,12 @@ function renderAtx() {
     let resetSelector = document.querySelector("#atxResetChannel");
     let noReset = document.createElement("option");
     noReset.value = "";
-    noReset.textContent = "不接复位键";
+    noReset.textContent = I18n.t("settings.atx.noReset");
     resetSelector.appendChild(noReset);
     AtxRelay.CHANNELS.forEach(function (channel) {
         let option = document.createElement("option");
         option.value = String(channel);
-        option.textContent = "第 " + channel + " 路";
+        option.textContent = I18n.t("settings.atx.channel", {channel: channel});
         option.selected = channel === (atx ? atx.channel : 1);
         channelSelector.appendChild(option);
         let resetOption = option.cloneNode(true);
@@ -291,12 +293,12 @@ async function releasePort(port) {
 
 function baudNote(baud) {
     if (baud === 9600) {
-        return "（芯片出厂默认）";
+        return I18n.t("settings.baud.factory");
     }
     if (baud === 115200) {
-        return "（推荐；原版 CH9329 的上限）";
+        return I18n.t("settings.baud.recommended");
     }
-    return "（需 CH9329F + 高速串口芯片）";
+    return I18n.t("settings.baud.fast");
 }
 
 // 下拉框直接由探测列表生成。硬编码成两份的话迟早会对不上，而一旦写进一个
@@ -326,7 +328,7 @@ async function withChip(action) {
     let settings = SettingsStore.readOrEmpty();
     let ports = await navigator.serial.getPorts();
     if (ports.length === 0) {
-        notify("这个网址下还没有授权任何串口。请先点「授权控制器」。", "error");
+        notify(I18n.t("settings.chip.noPorts"), "error");
         return null;
     }
 
@@ -336,7 +338,7 @@ async function withChip(action) {
         if (ports.length === 1) {
             port = ports[0];
         } else {
-            notify("有多个已授权的串口，请先在上面的下拉框里选中 CH9329 那个再写入。", "error");
+            notify(I18n.t("settings.chip.pickPort"), "error");
             return null;
         }
     }
@@ -348,8 +350,7 @@ async function withChip(action) {
         await releasePort(port);
         let detail = Ch9329.describeAttempts(connection.attempts);
         console.warn("CH9329 探测失败：", connection.attempts);
-        notify("CH9329 没有应答，无法写入。\n\n探测结果：" + detail
-            + "\n\n如果显示「打不开串口」，多半是 KVM 页面还占着这个端口，先关掉其它标签页再试。", "error");
+        notify(I18n.t("settings.chip.noReply", {detail: detail}), "error");
         return null;
     }
     try {
@@ -370,16 +371,16 @@ async function applyBaudRate() {
         return;
     }
     if (!result.ok) {
-        notify("写入失败：" + result.reason, "error");
+        notify(I18n.t("settings.chip.writeFailed", {reason: result.reason}), "error");
         return;
     }
 
     SettingsStore.patch({baudRate: target});
     if (result.unchanged) {
-        notify("芯片波特率已经是 " + target + "，无需改动。");
+        notify(I18n.t("settings.baud.unchanged", {baud: target}));
         return;
     }
-    notifyReplug("已写入 " + target + "。请把 CH9329 断电重插（拔掉 USB 再插回）后生效。");
+    notifyReplug(I18n.t("settings.baud.written", {baud: target}));
 }
 
 async function applyWorkingMode() {
@@ -391,23 +392,21 @@ async function applyWorkingMode() {
         return;
     }
     if (!result.ok) {
-        notify("写入失败：" + result.reason, "error");
+        notify(I18n.t("settings.chip.writeFailed", {reason: result.reason}), "error");
         return;
     }
     // 只有真正写进芯片才记下来，否则下拉框会显示一个芯片上并不存在的模式
     SettingsStore.patch({workingMode: target});
     if (result.unchanged) {
-        notify("芯片工作模式已经是 " + target + "，无需改动。");
+        notify(I18n.t("settings.mode.unchanged", {mode: target}));
         return;
     }
-    notifyReplug("已写入工作模式 " + target + "。请把 CH9329 断电重插（拔掉 USB 再插回）后生效。\n\n"
-        + "被控端可能会把它当成一台新键盘而弹出识别向导，走完或关掉即可。");
+    notifyReplug(I18n.t("settings.mode.written", {mode: target}));
 }
 
 async function restoreDefaults(button) {
-    if (!confirmByClickingTwice(button, "再点一次确认恢复")) {
-        Notices.show("恢复出厂会把芯片的参数配置和字符串描述符全部还原：波特率回到 9600，工作模式回到 0。"
-            + "确定的话 4 秒内再点一次。", {level: "warn", key: "settings", timeout: CONFIRM_MS});
+    if (!confirmByClickingTwice(button, I18n.t("settings.restore.armed"))) {
+        Notices.show(I18n.t("settings.restore.warning"), {level: "warn", key: "settings", timeout: CONFIRM_MS});
         return;
     }
     Notices.dismiss("settings");
@@ -418,12 +417,12 @@ async function restoreDefaults(button) {
         return;
     }
     if (!result.ok) {
-        let status = result.status == null ? "无应答" : "0x" + result.status.toString(16);
-        notify("恢复出厂配置失败（" + status + "）", "error");
+        let status = result.status == null ? I18n.t("chip.noReply") : "0x" + result.status.toString(16);
+        notify(I18n.t("settings.restore.failed", {status: status}), "error");
         return;
     }
     SettingsStore.patch({baudRate: 9600, workingMode: 0});
-    notifyReplug("已恢复出厂配置。请把 CH9329 断电重插（拔掉 USB 再插回）后生效，之后波特率是 9600。");
+    notifyReplug(I18n.t("settings.restore.done"));
 }
 
 function collectConfig() {
@@ -492,15 +491,15 @@ function collectConfig() {
 function save() {
     let config = collectConfig();
     if (!SettingsStore.write(config)) {
-        notify("保存失败，浏览器可能禁用了本地存储", "error");
+        notify(I18n.t("settings.storageFailed"), "error");
         return;
     }
     let profiles = Profiles.load(localStorage);
     if (profiles.active) {
         Profiles.save(localStorage, Profiles.updateActive(profiles, config));
-        Notices.flash("保存成功，已同步到配置「" + profiles.active + "」");
+        Notices.flash(I18n.t("settings.savedToProfile", {name: profiles.active}));
     } else {
-        Notices.flash("保存成功");
+        Notices.flash(I18n.t("settings.saved"));
     }
     window.location.reload();
 }
@@ -510,7 +509,7 @@ function renderProfiles() {
     let selector = document.querySelector("#profileSelect");
     let none = document.createElement("option");
     none.value = "";
-    none.textContent = state.profiles.length ? "（不使用配置）" : "（还没有保存的配置）";
+    none.textContent = I18n.t(state.profiles.length ? "settings.profile.none" : "settings.profile.empty");
     selector.replaceChildren(none);
     state.profiles.forEach(function (profile) {
         let option = document.createElement("option");
@@ -538,11 +537,11 @@ function switchProfile() {
         return;
     }
     if (!SettingsStore.write(result.settings)) {
-        notify("切换失败，浏览器可能禁用了本地存储", "error");
+        notify(I18n.t("profile.switchFailed"), "error");
         return;
     }
     Profiles.save(localStorage, result.state);
-    Notices.flash("已切换到配置「" + name + "」");
+    Notices.flash(I18n.t("settings.profile.switched", {name: name}));
     window.location.reload();
 }
 
@@ -572,24 +571,24 @@ function confirmProfileName() {
         return;
     }
     if (!SettingsStore.write(config)) {
-        notify("保存失败，浏览器可能禁用了本地存储", "error");
+        notify(I18n.t("settings.storageFailed"), "error");
         return;
     }
     let existed = state.profiles.some(function (profile) {
         return profile.name === result.state.active;
     });
     Profiles.save(localStorage, result.state);
-    Notices.flash((existed ? "已更新配置「" : "已保存配置「") + result.state.active + "」");
+    Notices.flash(I18n.t(existed ? "settings.profile.updated" : "settings.profile.saved", {name: result.state.active}));
     window.location.reload();
 }
 
 function deleteProfile(button) {
     let state = Profiles.load(localStorage);
-    if (!state.active || !confirmByClickingTwice(button, "再点一次确认删除")) {
+    if (!state.active || !confirmByClickingTwice(button, I18n.t("settings.profile.deleteArmed"))) {
         return;
     }
     Profiles.save(localStorage, Profiles.remove(state, state.active));
-    notify("已删除配置「" + state.active + "」，当前设置不受影响");
+    notify(I18n.t("settings.profile.deleted", {name: state.active}));
     renderProfiles();
 }
 
@@ -609,10 +608,10 @@ function renderUsed() {
     }
     // 下拉框列的是「能选什么」，这里列的是「实际存了什么」，两者不一定一致
     let shown = 0;
-    shown += showSavedLine("#usedVideo", "视频", settings.video);
-    shown += showSavedLine("#usedAudio", "音频", settings.audio);
-    shown += showSavedLine("#usedUsb", "控制器", settings.usb);
-    shown += showSavedLine("#usedAtx", "继电器", settings.atx);
+    shown += showSavedLine("#usedVideo", I18n.t("settings.used.video"), settings.video);
+    shown += showSavedLine("#usedAudio", I18n.t("settings.used.audio"), settings.audio);
+    shown += showSavedLine("#usedUsb", I18n.t("settings.used.usb"), settings.usb);
+    shown += showSavedLine("#usedAtx", I18n.t("settings.used.atx"), settings.atx);
     if (shown > 0) {
         document.querySelector("#savedSection").style.display = "block";
     }
@@ -623,12 +622,35 @@ function showSavedLine(selector, name, device) {
         return 0;
     }
     let element = document.querySelector(selector);
-    element.innerHTML = name + "：<span></span>";
-    element.querySelector("span").innerText = device.label;
+    element.textContent = I18n.t("settings.used.line", {name: name});
+    let label = document.createElement("span");
+    label.innerText = device.label;
+    element.appendChild(label);
     element.style.display = "block";
     return 1;
 }
 
+function renderLanguages() {
+    let select = document.querySelector("#languageSelect");
+    I18n.LANGUAGES.forEach(function (language) {
+        let option = document.createElement("option");
+        option.value = language.code;
+        option.textContent = language.name;
+        select.appendChild(option);
+    });
+    select.value = I18n.current();
+}
+
+// 页面上的文字有一半是脚本生成的，逐个重画容易漏，刷新最稳。刷新会丢掉表单里
+// 没保存的改动，所以语言选择放在最上面，先选语言再填别的
+function changeLanguage() {
+    let code = document.querySelector("#languageSelect").value;
+    if (I18n.setLanguage(code)) {
+        window.location.reload();
+    }
+}
+
+renderLanguages();
 renderMedia();
 renderUsb();
 renderAtx();

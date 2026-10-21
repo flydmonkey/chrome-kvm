@@ -1,16 +1,19 @@
 // 画面显示方式：适应窗口、拉伸、1:1 原始像素、放大。只算视频元素该多大、
 // 摆在哪，不碰 DOM。坐标换算按元素的实际位置算，所以这里摆对了，点击就对得上
+var I18n = typeof I18n !== "undefined" ? I18n : require("./i18n.js");
+
 var ViewModes = (function () {
     var STORAGE_KEY = "chrome-kvm-view";
     var DEFAULT_MODE = "fit";
+    var t = I18n.t;
 
     var MODES = [
-        {id: "fit", label: "适应窗口", hint: "等比缩放，完整显示画面"},
-        {id: "fill", label: "拉伸填满", hint: "铺满窗口，比例可能变形"},
-        {id: "native", label: "原始像素 1:1", hint: "一个画面像素对一个屏幕像素，小字最清楚"},
-        {id: "zoom150", label: "放大 1.5×", hint: "画面跟着鼠标移动", zoom: 1.5},
-        {id: "zoom200", label: "放大 2×", hint: "画面跟着鼠标移动", zoom: 2},
-        {id: "zoom300", label: "放大 3×", hint: "画面跟着鼠标移动", zoom: 3}
+        {id: "fit", label: t("view.fit"), hint: t("view.fit.hint")},
+        {id: "fill", label: t("view.fill"), hint: t("view.fill.hint")},
+        {id: "native", label: t("view.native"), hint: t("view.native.hint")},
+        {id: "zoom150", label: t("view.zoom", {zoom: "1.5"}), hint: t("view.zoom.hint"), zoom: 1.5},
+        {id: "zoom200", label: t("view.zoom", {zoom: "2"}), hint: t("view.zoom.hint"), zoom: 2},
+        {id: "zoom300", label: t("view.zoom", {zoom: "3"}), hint: t("view.zoom.hint"), zoom: 3}
     ];
 
     function find(id) {

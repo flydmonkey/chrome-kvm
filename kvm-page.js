@@ -1,5 +1,7 @@
 // 控制页的页面逻辑：视频流、串口连接、键鼠事件转发、工具栏状态。
 // 协议细节在 ch9329.js，配置读写在 settings-store.js，可单测的判断在 page-logic.js。
+I18n.apply();
+
 let videoElement = document.getElementById("video");
 let containerElement = document.getElementById("container");
 let ch;
@@ -65,7 +67,7 @@ function startVideo(onFirstStream, quiet) {
     videoErrorLines = null;
     // 走到这里旧流已经死了，不停掉的话音频轨道还会占着设备
     stopStream(videoElement.srcObject);
-    setVideoStatus("warn", ["正在打开视频…"]);
+    setVideoStatus("warn", [I18n.t("video.opening")]);
     openMedia(args)
         .then(stream => {
             videoOpening = false;
@@ -82,7 +84,7 @@ function startVideo(onFirstStream, quiet) {
             bindVideoTrack(stream);
             if (videoDropped) {
                 videoDropped = false;
-                showNotice("采集卡已恢复，画面重新接上了。", {key: "video"});
+                showNotice(I18n.t("video.recovered"), {key: "video"});
             } else {
                 dismissNotice("video");
             }
@@ -101,10 +103,10 @@ function startVideo(onFirstStream, quiet) {
             }
             let message = PageLogic.describeMediaOpenError(e);
             videoTrack = null;
-            videoErrorLines = ["打开视频失败", message, "点击重试"];
+            videoErrorLines = [I18n.t("video.openFailed"), message, I18n.t("status.clickRetry")];
             renderVideoStatus();
             if (!quiet) {
-                showNotice("打开视频失败：" + message, {level: "error", key: "video"});
+                showNotice(I18n.t("video.openFailedWith", {message: message}), {level: "error", key: "video"});
             }
         });
 }
@@ -130,7 +132,7 @@ function bindVideoTrack(stream) {
             // 重开之后旧轨道的事件可能才姗姗来迟，那时它已经不是当前轨道了
             if (track === videoTrack) {
                 videoDropped = true;
-                showNotice("采集卡已断开，插回后会自动恢复画面。", {level: "warn", key: "video", timeout: 0});
+                showNotice(I18n.t("video.unplugged"), {level: "warn", key: "video", timeout: 0});
             }
             renderVideoStatus();
         });
@@ -182,11 +184,11 @@ function reopenVideoIfBack() {
 }
 
 function noticeVideoUnconfigured() {
-    showNotice("还没有选择视频采集卡，所以没有画面。键鼠不受影响。", {
+    showNotice(I18n.t("video.unconfigured"), {
         level: "warn",
         key: "video",
         timeout: 0,
-        link: {text: "去设置", href: "settings.html"}
+        link: {text: I18n.t("common.goSettings"), href: "settings.html"}
     });
 }
 
@@ -455,7 +457,7 @@ function reconnectSerial() {
     if (!lastSerialArgs) {
         return;
     }
-    setStatus("warn", ["正在重连…"]);
+    setStatus("warn", [I18n.t("serial.reconnecting")]);
     openSerial(lastSerialArgs.deviceId, lastSerialArgs.mouseClickMode);
 }
 
@@ -501,7 +503,7 @@ function connectFirstWorking(candidates, mouseAbsolute) {
 function openSerial(deviceId, mouseClickMode) {
     lastSerialArgs = {deviceId: deviceId, mouseClickMode: mouseClickMode};
     if (!navigator.serial) {
-        showNotice("当前浏览器不支持 Web Serial，键鼠无法使用。请用桌面版 Chrome 或 Edge 打开。", {
+        showNotice(I18n.t("serial.unsupported"), {
             level: "error",
             key: "serial"
         });
@@ -518,10 +520,10 @@ function openSerial(deviceId, mouseClickMode) {
                     renderStatus(null);
                     return;
                 }
-                showNotice("未检测到所选串口设备。请到设置页重新授权并选择正确的 CH9329 端口。", {
+                showNotice(I18n.t("serial.notFound"), {
                     level: "error",
                     key: "serial",
-                    link: {text: "去设置", href: "settings.html"}
+                    link: {text: I18n.t("common.goSettings"), href: "settings.html"}
                 });
                 return;
             }
@@ -551,7 +553,7 @@ function openSerial(deviceId, mouseClickMode) {
             console.log("CH9329", info, "baudRate=" + connection.baudRate);
             SettingsStore.patch({baudRate: connection.baudRate});
             if (!info.usbConnected) {
-                showNotice("CH9329 的 USB 未被被控端枚举，请检查接到被控机的 USB 线。", {
+                showNotice(I18n.t("serial.usbNotEnumerated"), {
                     level: "warn",
                     key: "serial"
                 });
@@ -651,7 +653,7 @@ function bindSettingsSync(initial) {
         let labels = applySettingsUpdate(next);
         renderProfilePanel();
         if (labels.length) {
-            showNotice("设置已更新：" + labels.join("、"), {key: "settings", timeout: 3000});
+            showNotice(I18n.t("settings.updated", {items: labels.join(I18n.t("common.listSeparator"))}), {key: "settings", timeout: 3000});
         }
     });
 }
@@ -863,8 +865,8 @@ function toggleToolbar() {
         togglePowerPanel(false);
         toggleOcrPanel(false);
     }
-    document.querySelector('#toggleTooltip').innerText = collapsed ? '展开' : '收起';
-    document.querySelector('#toggleButton').setAttribute('aria-label', collapsed ? '展开工具栏' : '收起工具栏');
+    document.querySelector('#toggleTooltip').innerText = I18n.t(collapsed ? "toolbar.expand" : "toolbar.collapse");
+    document.querySelector('#toggleButton').setAttribute('aria-label', I18n.t(collapsed ? "toolbar.expandLabel" : "toolbar.collapseLabel"));
 }
 
 function toggleFullScreen() {
@@ -924,8 +926,8 @@ function setViewMode(mode) {
 
 function renderViewPanel() {
     let label = ViewModes.label(viewMode);
-    document.getElementById("viewTooltip").textContent = "画面：" + label;
-    document.getElementById("viewButton").setAttribute("aria-label", "画面显示：" + label);
+    document.getElementById("viewTooltip").textContent = I18n.t("view.tooltip", {mode: label});
+    document.getElementById("viewButton").setAttribute("aria-label", I18n.t("view.buttonLabel", {mode: label}));
     let options = document.getElementById("viewOptions");
     options.textContent = "";
     ViewModes.MODES.forEach(function (mode) {
@@ -985,9 +987,9 @@ function renderProfilePanel() {
     if (button.hidden) {
         toggleProfilePanel(false);
     }
-    let label = state.active || "未选择配置";
-    document.getElementById("profileTooltip").textContent = "被控机：" + label;
-    button.setAttribute("aria-label", "切换被控机，当前：" + label);
+    let label = state.active || I18n.t("profile.none");
+    document.getElementById("profileTooltip").textContent = I18n.t("profile.tooltip", {name: label});
+    button.setAttribute("aria-label", I18n.t("profile.buttonLabel", {name: label}));
     let options = document.getElementById("profileOptions");
     options.textContent = "";
     state.profiles.forEach(function (profile) {
@@ -1023,14 +1025,14 @@ function switchProfile(name) {
         return;
     }
     if (!SettingsStore.write(result.settings)) {
-        showNotice("切换失败，浏览器可能禁用了本地存储", {level: "error", key: "settings", timeout: 4000});
+        showNotice(I18n.t("profile.switchFailed"), {level: "error", key: "settings", timeout: 4000});
         return;
     }
     Profiles.save(localStorage, result.state);
     // 本页自己写 localStorage 不会收到 storage 事件，得自己把新设置应用上
     applySettingsUpdate(result.settings);
     renderProfilePanel();
-    showNotice("已切换到「" + name + "」", {key: "settings", timeout: 3000});
+    showNotice(I18n.t("profile.switched", {name: name}), {key: "settings", timeout: 3000});
 }
 
 function toggleProfilePanel(force) {
@@ -1059,14 +1061,14 @@ const POWER_CONFIRM = {
     long: {
         button: "powerLong",
         hint: "powerLongHint",
-        idle: "按住 6 秒，等于拔电，没保存的东西会丢",
-        armed: "再点一次确认强制关机"
+        idle: I18n.t("power.long.hint"),
+        armed: I18n.t("power.long.armed")
     },
     reset: {
         button: "powerReset",
         hint: "powerResetHint",
-        idle: "立即重启，等于按机箱上的重启键，没保存的东西会丢",
-        armed: "再点一次确认重启"
+        idle: I18n.t("power.reset.hint"),
+        armed: I18n.t("power.reset.armed")
     }
 };
 let powerBusy = null;
@@ -1138,7 +1140,7 @@ async function pressPower(kind) {
     }
     disarmPower();
     if (!navigator.serial) {
-        showNotice("当前浏览器不支持 Web Serial，无法控制继电器。", {level: "error", key: "power"});
+        showNotice(I18n.t("power.unsupported"), {level: "error", key: "power"});
         return;
     }
     let press = AtxRelay.PRESSES[kind];
@@ -1150,15 +1152,15 @@ async function pressPower(kind) {
         let opened = await AtxRelay.openRelayPort(await navigator.serial.getPorts(),
             SettingsStore.parseUsbFilter(atx.deviceId), activePort);
         if (opened.error) {
-            showNotice(opened.error, {level: "error", key: "power", link: {text: "去设置", href: "settings.html"}});
+            showNotice(opened.error, {level: "error", key: "power", link: {text: I18n.t("common.goSettings"), href: "settings.html"}});
             return;
         }
         port = opened.port;
-        showNotice("正在" + press.label + "…", {
+        showNotice(I18n.t("power.pressing", {action: press.label}), {
             key: "power",
             timeout: press.ms + 2000,
             action: kind === "long" ? {
-                text: "松开",
+                text: I18n.t("power.release"),
                 onClick: function () {
                     cancel.cancelled = true;
                     if (cancel.release) {
@@ -1168,11 +1170,10 @@ async function pressPower(kind) {
             } : undefined
         });
         await AtxRelay.press(port, channel, press.ms, cancel);
-        showNotice(cancel.cancelled ? "已提前松开电源键" : "已" + press.label, {key: "power", timeout: 3000});
+        showNotice(cancel.cancelled ? I18n.t("power.releasedEarly") : I18n.t("power.done", {action: press.label}), {key: "power", timeout: 3000});
     } catch (e) {
         // 继电器靠 USB 供电，拔掉就一定松开
-        showNotice("继电器没响应：" + (e && e.message ? e.message : String(e))
-            + "。如果担心按键还按着，拔掉继电器的 USB 线即可松开。", {level: "error", key: "power"});
+        showNotice(I18n.t("power.failed", {message: e && e.message ? e.message : String(e)}), {level: "error", key: "power"});
     } finally {
         if (port) {
             await port.close().catch(function (e) {
@@ -1258,7 +1259,7 @@ function startRecord() {
         return;
     }
     if (typeof MediaRecorder === "undefined") {
-        showNotice("当前浏览器不支持录制", {level: "error", key: "record"});
+        showNotice(I18n.t("record.unsupported"), {level: "error", key: "record"});
         return;
     }
     const stream = videoElement.srcObject;
@@ -1268,7 +1269,7 @@ function startRecord() {
     // 没有画面时 new MediaRecorder 会抛错，而按钮之前已经切成了「停止」，
     // 界面就卡在一个其实没在录的状态
     if (!live) {
-        showNotice("没有画面可录，请先确认视频已经打开", {level: "warn", key: "record"});
+        showNotice(I18n.t("record.noVideo"), {level: "warn", key: "record"});
         return;
     }
 
@@ -1278,7 +1279,7 @@ function startRecord() {
     try {
         recorder = new MediaRecorder(stream, mimeType ? {mimeType: mimeType} : undefined);
     } catch (e) {
-        showNotice("无法开始录制：" + (e && e.message ? e.message : String(e)), {level: "error", key: "record"});
+        showNotice(I18n.t("record.startFailed", {message: e && e.message ? e.message : String(e)}), {level: "error", key: "record"});
         return;
     }
     const chunks = [];
@@ -1291,7 +1292,7 @@ function startRecord() {
 
     recorder.onerror = event => {
         let error = event && event.error;
-        showNotice("录制出错：" + (error && error.message ? error.message : "未知错误"), {
+        showNotice(I18n.t("record.error", {message: error && error.message ? error.message : I18n.t("common.unknownError")}), {
             level: "error",
             key: "record"
         });
@@ -1306,7 +1307,7 @@ function startRecord() {
         }
         setRecordingUi(false);
         if (chunks.length === 0) {
-            showNotice("录制没有收到任何画面，未生成文件", {level: "warn", key: "record"});
+            showNotice(I18n.t("record.empty"), {level: "warn", key: "record"});
             return;
         }
         const blob = new Blob(chunks, {type: recorder.mimeType || "video/webm"});
@@ -1320,7 +1321,7 @@ function startRecord() {
             URL.revokeObjectURL(url);
         }, 60000);
         if (interrupted) {
-            showNotice("采集中断，录制已自动停止，已录下的部分已经下载", {level: "warn", key: "record"});
+            showNotice(I18n.t("record.interrupted"), {level: "warn", key: "record"});
         }
     };
 
@@ -1328,7 +1329,7 @@ function startRecord() {
         // 每秒切一块：中途出问题时至少已经录下的部分还在
         recorder.start(1000);
     } catch (e) {
-        showNotice("无法开始录制：" + (e && e.message ? e.message : String(e)), {level: "error", key: "record"});
+        showNotice(I18n.t("record.startFailed", {message: e && e.message ? e.message : String(e)}), {level: "error", key: "record"});
         return;
     }
     mediaRecorder = recorder;
@@ -1363,21 +1364,21 @@ async function pasteText() {
         return;
     }
     if (!ch) {
-        showNotice("键鼠设备未连接", {level: "warn", key: "paste"});
+        showNotice(I18n.t("serial.notReady"), {level: "warn", key: "paste"});
         return;
     }
     let text;
     try {
         text = await navigator.clipboard.readText();
     } catch (e) {
-        showNotice("读取剪贴板失败：请先允许剪贴板权限，或确认页面在安全上下文中打开", {
+        showNotice(I18n.t("paste.readFailed"), {
             level: "error",
             key: "paste"
         });
         return;
     }
     if (!text) {
-        showNotice("剪贴板为空", {key: "paste"});
+        showNotice(I18n.t("paste.empty"), {key: "paste"});
         return;
     }
 
@@ -1385,12 +1386,12 @@ async function pasteText() {
     pasteCancelled = false;
     // 用户手上按着的键要先松开，否则会和敲出去的字符混在一起
     ch.forceReleaseAllInput();
-    let progress = showNotice("正在粘贴 0 / " + text.length, {
+    let progress = showNotice(I18n.t("paste.progress", {done: 0, total: text.length}), {
         key: "paste",
         timeout: 0,
         closable: false,
         action: {
-            text: "取消",
+            text: I18n.t("common.cancel"),
             onClick: function () {
                 pasteCancelled = true;
             }
@@ -1400,14 +1401,14 @@ async function pasteText() {
     try {
         result = await ch.typeText(text, {
             onProgress: function (done, total) {
-                progress.setMessage("正在粘贴 " + done + " / " + total);
+                progress.setMessage(I18n.t("paste.progress", {done: done, total: total}));
             },
             isCancelled: function () {
                 return pasteCancelled;
             }
         });
     } catch (e) {
-        showNotice("粘贴中断：" + (e && e.message ? e.message : String(e)), {level: "error", key: "paste"});
+        showNotice(I18n.t("paste.failed", {message: e && e.message ? e.message : String(e)}), {level: "error", key: "paste"});
         return;
     } finally {
         pasting = false;
@@ -1454,7 +1455,7 @@ async function takeScreenshot() {
     let width = videoElement.videoWidth;
     let height = videoElement.videoHeight;
     if (!width || !height || videoBroken()) {
-        showNotice("没有画面可截，请先确认视频已经打开", {level: "warn", key: "screenshot"});
+        showNotice(I18n.t("screenshot.noVideo"), {level: "warn", key: "screenshot"});
         return;
     }
     let canvas = document.createElement("canvas");
@@ -1465,7 +1466,7 @@ async function takeScreenshot() {
         canvas.toBlob(resolve, "image/png");
     });
     if (!blob) {
-        showNotice("截图失败：浏览器没能生成图片", {level: "error", key: "screenshot"});
+        showNotice(I18n.t("screenshot.failed"), {level: "error", key: "screenshot"});
         return;
     }
     const url = URL.createObjectURL(blob);
@@ -1487,7 +1488,7 @@ async function takeScreenshot() {
     } catch (e) {
         console.warn("截图复制到剪贴板失败", e);
     }
-    showNotice("截图已保存（" + width + "×" + height + "）" + (copied ? "，并已复制到剪贴板" : ""), {
+    showNotice(I18n.t(copied ? "screenshot.savedCopied" : "screenshot.saved", {width: width, height: height}), {
         key: "screenshot",
         timeout: 3000
     });
@@ -1505,16 +1506,16 @@ async function runShortcut(item, repeatable) {
         return;
     }
     if (!ch) {
-        showNotice("键鼠设备未连接", {level: "warn", key: "shortcut"});
+        showNotice(I18n.t("serial.notReady"), {level: "warn", key: "shortcut"});
         return;
     }
     if (pasting) {
-        showNotice("正在粘贴，等粘贴结束或取消后再按快捷键", {level: "warn", key: "shortcut"});
+        showNotice(I18n.t("shortcut.busyPasting"), {level: "warn", key: "shortcut"});
         return;
     }
     let parsed = Shortcuts.parseSequence(item.combo);
     if (parsed.error) {
-        showNotice("快捷键无效：" + parsed.error, {level: "error", key: "shortcut"});
+        showNotice(I18n.t("shortcut.invalid", {message: parsed.error}), {level: "error", key: "shortcut"});
         return;
     }
     if (repeatable && shortcutRepeatOn) {
@@ -1528,11 +1529,11 @@ async function runShortcut(item, repeatable) {
             await sleep(150);
         }
         if (ch !== chip || !await chip.tapCombo(parsed.steps[i])) {
-            showNotice("快捷键没有发完：" + parsed.text, {level: "error", key: "shortcut"});
+            showNotice(I18n.t("shortcut.incomplete", {combo: parsed.text}), {level: "error", key: "shortcut"});
             return;
         }
     }
-    showNotice("已发送 " + parsed.text, {key: "shortcut", timeout: 1500});
+    showNotice(I18n.t("shortcut.sent", {combo: parsed.text}), {key: "shortcut", timeout: 1500});
 }
 
 async function repeatShortcut(parsed) {
@@ -1542,12 +1543,12 @@ async function repeatShortcut(parsed) {
     chip.forceReleaseAllInput();
     let count = 0;
     let started = Date.now();
-    let notice = showNotice("正在连按 " + parsed.text, {
+    let notice = showNotice(I18n.t("shortcut.repeating", {combo: parsed.text}), {
         key: "shortcut",
         timeout: 0,
         closable: false,
         action: {
-            text: "停止",
+            text: I18n.t("common.stop"),
             onClick: function () {
                 keyRepeatStop = true;
             }
@@ -1559,15 +1560,16 @@ async function repeatShortcut(parsed) {
                 await chip.tapCombo(parsed.steps[i]);
             }
             count++;
-            notice.setMessage("正在连按 " + parsed.text + "（已按 " + count + " 次），被控端开机自检时会认到");
+            notice.setMessage(I18n.t("shortcut.repeatingCount", {combo: parsed.text, count: count}));
             await sleep(Shortcuts.REPEAT_INTERVAL_MS);
         }
     } finally {
         keyRepeating = false;
     }
     let timedOut = !keyRepeatStop && ch === chip;
-    showNotice((timedOut ? "连按已到 " + Shortcuts.REPEAT_MAX_MS / 1000 + " 秒上限，自动停止" : "已停止连按")
-        + "，共按了 " + count + " 次 " + parsed.text, {key: "shortcut", timeout: 3000});
+    showNotice(timedOut
+        ? I18n.t("shortcut.repeatTimedOut", {seconds: Shortcuts.REPEAT_MAX_MS / 1000, count: count, combo: parsed.text})
+        : I18n.t("shortcut.repeatStopped", {count: count, combo: parsed.text}), {key: "shortcut", timeout: 3000});
 }
 
 function toggleShortcutPanel(force) {
@@ -1589,7 +1591,7 @@ function renderShortcutPanel() {
     groups.textContent = "";
     let custom = Shortcuts.loadCustom(localStorage);
     if (custom.length) {
-        groups.appendChild(buildShortcutGroup({title: "自定义", items: custom}, true));
+        groups.appendChild(buildShortcutGroup({title: I18n.t("shortcut.group.custom"), items: custom}, true));
     }
     Shortcuts.PRESETS.forEach(function (group) {
         groups.appendChild(buildShortcutGroup(group, false));
@@ -1607,8 +1609,10 @@ function buildShortcutGroup(group, removable) {
     if (group.repeatable) {
         let toggle = document.createElement("label");
         toggle.className = "shortcut-repeat";
-        toggle.title = "打开后点按键会每 " + Shortcuts.REPEAT_INTERVAL_MS / 1000 + " 秒按一次，最长 "
-            + Shortcuts.REPEAT_MAX_MS / 1000 + " 秒。先打开连按再给被控端开机，就不会错过 BIOS 热键";
+        toggle.title = I18n.t("shortcut.repeatHint", {
+            interval: Shortcuts.REPEAT_INTERVAL_MS / 1000,
+            max: Shortcuts.REPEAT_MAX_MS / 1000
+        });
         let checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.checked = shortcutRepeatOn;
@@ -1616,7 +1620,7 @@ function buildShortcutGroup(group, removable) {
             shortcutRepeatOn = checkbox.checked;
         });
         toggle.appendChild(checkbox);
-        toggle.appendChild(document.createTextNode("开机连按"));
+        toggle.appendChild(document.createTextNode(I18n.t("shortcut.repeatToggle")));
         header.appendChild(toggle);
     }
     section.appendChild(header);
@@ -1646,7 +1650,7 @@ function buildShortcutGroup(group, removable) {
             remove.type = "button";
             remove.className = "shortcut-remove";
             remove.textContent = "×";
-            remove.setAttribute("aria-label", "删除 " + item.label);
+            remove.setAttribute("aria-label", I18n.t("shortcut.removeLabel", {name: item.label}));
             remove.addEventListener("click", function () {
                 let next = Shortcuts.loadCustom(localStorage);
                 next.splice(index, 1);
@@ -1667,7 +1671,7 @@ function addCustomShortcut() {
     let error = document.getElementById("shortcutError");
     let list = Shortcuts.loadCustom(localStorage);
     if (list.length >= Shortcuts.MAX_CUSTOM) {
-        error.textContent = "最多保存 " + Shortcuts.MAX_CUSTOM + " 个自定义快捷键";
+        error.textContent = I18n.t("shortcut.error.tooManyCustom", {max: Shortcuts.MAX_CUSTOM});
         return;
     }
     let custom = Shortcuts.makeCustom(labelInput.value, comboInput.value);
@@ -1733,7 +1737,7 @@ function loadScript(src) {
         script.src = src;
         script.onload = resolve;
         script.onerror = function () {
-            reject(new Error("加载 " + src + " 失败"));
+            reject(new Error(I18n.t("common.loadFailed", {src: src})));
         };
         document.head.appendChild(script);
     });
@@ -1782,11 +1786,11 @@ function scheduleOcrIdle() {
 
 function startOcrSelection() {
     if (ocrBusy) {
-        showNotice("上一次识别还没完成，请稍等", {key: "ocr", timeout: 3000});
+        showNotice(I18n.t("ocr.busy"), {key: "ocr", timeout: 3000});
         return;
     }
     if (!hasLivePicture()) {
-        showNotice("没有画面可识别，请先确认视频已经打开", {level: "warn", key: "ocr"});
+        showNotice(I18n.t("ocr.noVideo"), {level: "warn", key: "ocr"});
         return;
     }
     ocrPanelWasOpen = !document.getElementById("ocrPanel").hidden;
@@ -1876,7 +1880,7 @@ async function recognizeRegion(region) {
         return;
     }
     if (!hasLivePicture()) {
-        showNotice("没有画面可识别，请先确认视频已经打开", {level: "warn", key: "ocr"});
+        showNotice(I18n.t("ocr.noVideo"), {level: "warn", key: "ocr"});
         return;
     }
     ocrBusy = true;
@@ -1898,16 +1902,16 @@ async function recognizeRegion(region) {
         document.getElementById("ocrText").value = text;
         toggleOcrPanel(true);
         if (!text) {
-            showNotice("没有识别到文字。只框住文字部分、框小一点再试试", {level: "warn", key: "ocr", timeout: 5000});
+            showNotice(I18n.t("ocr.nothing"), {level: "warn", key: "ocr", timeout: 5000});
             return;
         }
         let copied = await copyPlainText(text);
-        showNotice("识别出 " + Ocr.charCount(text) + " 个字" + (copied ? "，已复制到剪贴板" : ""),
+        showNotice(I18n.t(copied ? "ocr.doneCopied" : "ocr.done", {count: Ocr.charCount(text)}),
             {key: "ocr", timeout: 3000});
     } catch (e) {
         notice.remove();
         console.warn("文字识别失败", e);
-        showNotice("文字识别失败：" + (e && e.message ? e.message : String(e)), {level: "error", key: "ocr"});
+        showNotice(I18n.t("ocr.failed", {message: e && e.message ? e.message : String(e)}), {level: "error", key: "ocr"});
         // 引擎出过错就不再信它，下次重新建
         disposeOcrWorker();
     } finally {
@@ -1925,17 +1929,17 @@ function recognizeWholeFrame() {
 async function copyOcrText() {
     let area = document.getElementById("ocrText");
     if (!area.value) {
-        showNotice("还没有可复制的文字", {key: "ocr", timeout: 3000});
+        showNotice(I18n.t("ocr.nothingToCopy"), {key: "ocr", timeout: 3000});
         return;
     }
     if (await copyPlainText(area.value)) {
-        showNotice("已复制到剪贴板", {key: "ocr", timeout: 2000});
+        showNotice(I18n.t("ocr.copied"), {key: "ocr", timeout: 2000});
         return;
     }
     // 浏览器不让写剪贴板时，选中文字让用户自己按 Ctrl+C
     area.focus();
     area.select();
-    showNotice("浏览器不允许写入剪贴板，文字已选中，请按 Ctrl+C 复制", {level: "warn", key: "ocr"});
+    showNotice(I18n.t("ocr.copyBlocked"), {level: "warn", key: "ocr"});
 }
 
 function renderOcrLangs() {
@@ -2022,7 +2026,7 @@ function toggleOcrPanel(force) {
         let region = ocrRegionFromSelection(start, point(event));
         if (!region) {
             document.getElementById("ocrBox").hidden = true;
-            showNotice("框得太小或没框到画面，请重新拖动框选", {key: "ocr", timeout: 3000});
+            showNotice(I18n.t("ocr.selectionTooSmall"), {key: "ocr", timeout: 3000});
             return;
         }
         endOcrSelection();

@@ -58,7 +58,7 @@ var Notices = (function () {
             var close = document.createElement("button");
             close.className = "notice-close";
             close.type = "button";
-            close.setAttribute("aria-label", "关闭提示");
+            close.setAttribute("aria-label", I18n.t("notice.close"));
             close.textContent = "×";
             close.addEventListener("click", function () {
                 notice.remove();

@@ -1,7 +1,10 @@
 // 控制页里不碰 DOM、不碰硬件的那部分判断：设置怎么换算成采集参数、设置变了
 // 要重做什么、端口怎么挑、提示怎么措辞。和 status-text.js 一样抽出来是为了能单测，
 // 页面里只剩「把结果落到界面和设备上」。
+var I18n = typeof I18n !== "undefined" ? I18n : require("./i18n.js");
+
 var PageLogic = (function () {
+    var t = I18n.t;
     var DEFAULT_WIDTH = 1920;
     var DEFAULT_HEIGHT = 1080;
 
@@ -58,13 +61,13 @@ var PageLogic = (function () {
             labels: []
         };
         if (changes.relativeSpeed !== null) {
-            changes.labels.push("相对模式灵敏度");
+            changes.labels.push(t("change.relativeSpeed"));
         }
         if (changes.media) {
-            changes.labels.push("视频");
+            changes.labels.push(t("change.video"));
         }
         if (changes.serial) {
-            changes.labels.push("键鼠");
+            changes.labels.push(t("change.serial"));
         }
         return changes;
     }
@@ -107,7 +110,7 @@ var PageLogic = (function () {
     function describeMediaOpenError(e) {
         // deviceId 用的是 exact，设备不在时报的是这个，原文只有一个错误名，看不懂
         if (e && e.name === "OverconstrainedError") {
-            return "找不到设置里选的采集卡，可能没插好或换了 USB 口，插好后会自动打开，否则请到设置页重新选择";
+            return t("video.error.deviceMissing");
         }
         return e && e.message ? e.message : String(e);
     }
@@ -133,12 +136,11 @@ var PageLogic = (function () {
 
     // 粘贴结束后的提示。只有一切顺利时才几秒后自动消失，取消和跳过都要留着让人看到
     function pasteSummary(result) {
-        var message = "已粘贴 " + result.typed + " 个字符";
-        if (result.skipped > 0) {
-            message += "，跳过 " + result.skipped + " 个不支持的字符（如中文）";
-        }
+        var message = result.skipped > 0
+            ? t("paste.doneSkipped", {typed: result.typed, skipped: result.skipped})
+            : t("paste.done", {typed: result.typed});
         if (result.cancelled) {
-            return {message: "已取消粘贴。" + message, level: "warn"};
+            return {message: t("paste.cancelled", {summary: message}), level: "warn"};
         }
         if (result.skipped > 0) {
             return {message: message, level: "warn"};

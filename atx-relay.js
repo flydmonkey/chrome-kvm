@@ -1,6 +1,9 @@
 // ATX 电源控制：USB 串口继电器（LCUS 系列）并在主板前面板的电源键跳线上，
 // 继电器吸合就等于按下电源键。短按开机或让系统正常关机，长按强制断电。
+var I18n = typeof I18n !== "undefined" ? I18n : require("./i18n.js");
+
 var AtxRelay = (function () {
+    var t = I18n.t;
     var BAUD_RATE = 9600;
     var CHANNELS = [1, 2, 3, 4];
     var SHORT_PRESS_MS = 500;
@@ -8,9 +11,9 @@ var AtxRelay = (function () {
     var LONG_PRESS_MS = 6000;
 
     var PRESSES = {
-        short: {ms: SHORT_PRESS_MS, label: "按一下电源键"},
-        long: {ms: LONG_PRESS_MS, label: "长按电源键强制关机"},
-        reset: {ms: SHORT_PRESS_MS, label: "按一下复位键", resetChannel: true}
+        short: {ms: SHORT_PRESS_MS, label: t("atx.press.short")},
+        long: {ms: LONG_PRESS_MS, label: t("atx.press.long")},
+        reset: {ms: SHORT_PRESS_MS, label: t("atx.press.reset"), resetChannel: true}
     };
 
     // LCUS 协议：A0 通道 开关 校验和（前三字节相加取低 8 位）
@@ -70,7 +73,7 @@ var AtxRelay = (function () {
     async function openRelayPort(ports, filter, chipPort) {
         var candidates = candidatePorts(ports, filter, chipPort);
         if (candidates.length === 0) {
-            return {error: "没有找到继电器串口。请确认继电器已插好，并在设置页授权、选中它。"};
+            return {error: t("atx.error.notFound")};
         }
         var opened = [];
         for (var i = 0; i < candidates.length; i++) {
@@ -88,10 +91,9 @@ var AtxRelay = (function () {
             return port.close().catch(function () {});
         }));
         if (opened.length === 0) {
-            return {error: "继电器串口打不开，可能被别的标签页或程序占用了。"};
+            return {error: t("atx.error.busy")};
         }
-        return {error: "有 " + opened.length + " 个同型号串口都能打开，分不清哪个是继电器。"
-            + "先让键鼠连上（它会占掉 CH9329 那个），或拔掉多余的串口设备再试。"};
+        return {error: t("atx.error.ambiguous", {count: opened.length})};
     }
 
     // 吸合、等待、断开。断开放在 finally 里：中途出错也要尽量松开，否则电源键
