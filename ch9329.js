@@ -806,6 +806,70 @@ function Ch9329(writer, mouseAbsolute, reader) {
         this.releaseAllKeys();
     }
 
+    // codes 用 KeyboardEvent.code 命名，修饰键进修饰位，其余进 6 个普通键位。
+    // 有不认识的键就返回 null，宁可不发也别发出一个缺键的组合
+    this.comboReport = function (codes) {
+        let modifiers = 0;
+        let keys = [];
+        for (let i = 0; i < codes.length; i++) {
+            let code = codes[i];
+            if (typeof code === "string" && Ch9329.CONTROL_KEY_BITS[code]) {
+                modifiers |= Ch9329.CONTROL_KEY_BITS[code];
+                continue;
+            }
+            let usage = Ch9329.KEYBOARD_MAP[code];
+            if (usage == null) {
+                return null;
+            }
+            if (keys.indexOf(usage) === -1) {
+                keys.push(usage);
+            }
+        }
+        if (keys.length > 6) {
+            return null;
+        }
+        return {modifiers: modifiers, keys: keys};
+    }
+
+    this.keyboardPacket = function (modifiers, keys) {
+        let data = [0x57, 0xAB, this.ADDR, 0x02, 0x08, modifiers, 0x00, 0, 0, 0, 0, 0, 0];
+        for (let i = 0; i < keys.length; i++) {
+            data[7 + i] = keys[i];
+        }
+        return this.toUnit8Array(data);
+    }
+
+    // 按一下组合键再全部松开。修饰键单独先发一包：有的系统要先看到 Ctrl/Win
+    // 按住，才把随后的键当成快捷键，修饰键和普通键挤在同一包里偶尔不认
+    this.tapCombo = async function (codes) {
+        let report = this.comboReport(codes);
+        if (!report) {
+            return false;
+        }
+        // 用户手上按着的键会和组合键混在一起，先清掉本地状态
+        this.pressedKeys = [];
+        for (const key in this.controlKeyDown) {
+            this.controlKeyDown[key] = false;
+        }
+        let pause = function () {
+            return new Promise(function (resolve) {
+                setTimeout(resolve, 20);
+            });
+        };
+        if (report.modifiers && report.keys.length) {
+            if (!await this.write(this.keyboardPacket(report.modifiers, []))) {
+                await pause();
+            }
+        }
+        if (!await this.write(this.keyboardPacket(report.modifiers, report.keys))) {
+            await pause();
+        }
+        if (!await this.write(this.keyboardReleasePacket)) {
+            await pause();
+        }
+        return true;
+    }
+
     this.clicked = {command: 0x00};
     this.lastAbsX = 0;
     this.lastAbsY = 0;
@@ -1429,6 +1493,8 @@ Ch9329.KEYBOARD_MAP = {
     "F11": 0x44,  // F11
     "F12": 0x45,  // F12
     "NumLock": 0x53,  // NumLock
+    "ScrollLock": 0x47,  // ScrollLock
+    "NumpadEnter": 0x58,  // NumPad Enter
     "ShiftLeft": 0xE1,  // LShiftKey
     "ShiftRight": 0xE5,  // RShiftKey
     "ControlLeft": 0xE0,  // LControlKey

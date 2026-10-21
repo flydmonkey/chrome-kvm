@@ -1507,3 +1507,65 @@ test("GET_INFO 解析", async function (t) {
         assert.strictEqual(info.asleep, false);
     });
 });
+
+test("组合键一键发送", async function (t) {
+    function keyboardFrames(chip) {
+        return framesOf(chip, 0x02).map(function (bytes) {
+            return Array.from(bytes.slice(5, 13));
+        });
+    }
+
+    await t.test("先按住修饰键，再加上普通键，最后全部松开", async function () {
+        const {chip, ch} = newChip();
+        assert.strictEqual(await ch.tapCombo(["ControlLeft", "AltLeft", "F2"]), true);
+        assert.deepStrictEqual(keyboardFrames(chip), [
+            [0x05, 0x00, 0, 0, 0, 0, 0, 0],
+            [0x05, 0x00, 0x3B, 0, 0, 0, 0, 0],
+            [0x00, 0x00, 0, 0, 0, 0, 0, 0]
+        ]);
+    });
+
+    await t.test("没有修饰键时不多发那一包", async function () {
+        const {chip, ch} = newChip();
+        await ch.tapCombo(["Delete"]);
+        assert.deepStrictEqual(keyboardFrames(chip), [
+            [0x00, 0x00, 0x4C, 0, 0, 0, 0, 0],
+            [0x00, 0x00, 0, 0, 0, 0, 0, 0]
+        ]);
+    });
+
+    await t.test("只按修饰键（单独的 Win）也是按下再松开", async function () {
+        const {chip, ch} = newChip();
+        await ch.tapCombo(["MetaLeft"]);
+        assert.deepStrictEqual(keyboardFrames(chip), [
+            [0x08, 0x00, 0, 0, 0, 0, 0, 0],
+            [0x00, 0x00, 0, 0, 0, 0, 0, 0]
+        ]);
+    });
+
+    await t.test("有不认识的键时一个包都不发", async function () {
+        const {chip, ch} = newChip();
+        assert.strictEqual(await ch.tapCombo(["ControlLeft", "NoSuchKey"]), false);
+        assert.strictEqual(framesOf(chip, 0x02).length, 0);
+    });
+
+    await t.test("超过 6 个普通键时拒绝", async function () {
+        const {ch} = newChip();
+        assert.strictEqual(await ch.tapCombo(["KeyA", "KeyB", "KeyC", "KeyD", "KeyE", "KeyF", "KeyG"]), false);
+    });
+
+    await t.test("发之前清掉用户按着的键，发完本地状态也是干净的", async function () {
+        const {ch} = newChip();
+        ch.keydown("ShiftLeft");
+        ch.keydown("KeyA");
+        await ch.tapCombo(["MetaLeft", "KeyL"]);
+        await drain(ch);
+        assert.deepStrictEqual(ch.pressedKeys, []);
+        assert.strictEqual(ch.getModifierByte(), 0x00);
+    });
+
+    await t.test("ScrollLock 和小键盘回车有键码", function () {
+        assert.strictEqual(Ch9329.KEYBOARD_MAP.ScrollLock, 0x47);
+        assert.strictEqual(Ch9329.KEYBOARD_MAP.NumpadEnter, 0x58);
+    });
+});
