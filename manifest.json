@@ -1,7 +1,8 @@
 {
   "name": "Chrome KVM",
   "short_name": "KVM",
-  "description": "A simple pc manage",
+  "description": "在浏览器里远程控制电脑：USB 采集卡看画面，CH9329 控制键鼠",
+  "lang": "zh-CN",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#000000",
