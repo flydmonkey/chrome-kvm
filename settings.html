@@ -7,6 +7,7 @@
     <link rel="icon" href="app.svg" type="image/svg+xml">
     <link rel="alternate icon" href="app-192.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="notices.css">
     <style>
         /* 让原生下拉框的弹出列表也跟着用深色 */
         :root {
@@ -99,7 +100,8 @@
 
         /* 下拉框和输入框共用同一套外观，样式只写一份，加新控件时不会又长歪 */
         select,
-        input[type="number"] {
+        input[type="number"],
+        input[type="text"] {
             width: 100%;
             box-sizing: border-box;
             font: inherit;
@@ -125,7 +127,8 @@
             background-size: 14px;
         }
 
-        input[type="number"] {
+        input[type="number"],
+        input[type="text"] {
             /* 没有箭头要让位，左右一样留白 */
             padding: 9px 10px;
             /* 让 Chrome 用深色渲染自带的上下微调按钮，否则右侧会糊一块浅色 */
@@ -139,12 +142,14 @@
         }
 
         select:hover,
-        input[type="number"]:hover {
+        input[type="number"]:hover,
+        input[type="text"]:hover {
             border-color: rgba(255, 255, 255, 0.22);
         }
 
         select:focus-visible,
-        input[type="number"]:focus-visible {
+        input[type="number"]:focus-visible,
+        input[type="text"]:focus-visible {
             outline: 2px solid #60a5fa;
             outline-offset: -1px;
         }
@@ -179,6 +184,33 @@
 
         .confirm-button.primary:hover {
             background-color: #34c975;
+        }
+
+        /* 危险操作点第一下之后的确认状态 */
+        .confirm-button[data-armed="true"] {
+            color: #fca5a5;
+            background-color: rgba(248, 113, 113, 0.14);
+            border-color: rgba(248, 113, 113, 0.5);
+        }
+
+        .confirm-button:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .profile-name-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .profile-name-row[hidden] {
+            display: none;
+        }
+
+        .profile-name-row input {
+            flex: 1;
+            min-width: 0;
         }
 
         .confirm-button.block {
@@ -226,6 +258,7 @@
     </style>
 </head>
 <body>
+<div class="notice-stack" id="noticeStack" role="status" aria-live="polite"></div>
 <div class="form-container">
     <h2>设备设置</h2>
     <p class="page-hint">选择采集卡和 CH9329 控制器，保存后回到控制页。浏览器的设备授权是按网址记的，换网址要重新授权。</p>
@@ -251,7 +284,13 @@
         </div>
         <div class="actions">
             <button type="button" class="confirm-button" onclick="saveProfileAs()">按当前表单另存为…</button>
-            <button type="button" class="confirm-button" id="profileDelete" onclick="deleteProfile()">删除此配置</button>
+            <button type="button" class="confirm-button" id="profileDelete" onclick="deleteProfile(this)">删除此配置</button>
+        </div>
+        <div class="profile-name-row" id="profileNameRow" hidden>
+            <input type="text" id="profileName" maxlength="20" autocomplete="off"
+                   placeholder="给这台被控机起个名字，同名会覆盖" aria-label="配置名">
+            <button type="button" class="confirm-button primary" onclick="confirmProfileName()">保存</button>
+            <button type="button" class="confirm-button" onclick="cancelProfileName()">取消</button>
         </div>
     </div>
 
@@ -386,7 +425,7 @@
             <button type="button" class="confirm-button" onclick="authUsb()">授权控制器</button>
             <button type="button" class="confirm-button" onclick="applyBaudRate()">写入波特率</button>
             <button type="button" class="confirm-button" onclick="applyWorkingMode()">写入工作模式</button>
-            <button type="button" class="confirm-button" onclick="restoreDefaults()">恢复出厂配置</button>
+            <button type="button" class="confirm-button" onclick="restoreDefaults(this)">恢复出厂配置</button>
         </div>
     </div>
 
@@ -438,6 +477,8 @@
 </div>
 <script src="settings-store.js"></script>
 <script src="profiles.js"></script>
+<script src="page-logic.js"></script>
+<script src="notices.js"></script>
 <script src="device-filter.js"></script>
 <script src="ch9329.js"></script>
 <script src="atx-relay.js"></script>

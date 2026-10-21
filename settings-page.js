@@ -1,9 +1,38 @@
 // 设置页的页面逻辑：枚举设备、填下拉框、写波特率、存配置。
 const NO_WEB_SERIAL = "当前浏览器不支持 Web Serial，无法连接 CH9329。请用桌面版 Chrome 或 Edge 打开。";
+const CONFIRM_MS = 4000;
+
+// 提示统一走顶部提示条，不用 alert：同一时间只留一条，错误不自动消失
+function notify(message, level) {
+    return Notices.show(message, {level: level || "info", key: "settings"});
+}
+
+// 写进芯片后要断电重插才生效，这一步漏了等于白写，所以提示留着等用户关
+function notifyReplug(message) {
+    return Notices.show(message, {level: "warn", key: "settings", timeout: 0});
+}
+
+// 危险操作点两下才执行：第一下把按钮变成确认状态，4 秒内再点才返回 true
+function confirmByClickingTwice(button, armedText) {
+    if (button.dataset.armed === "true") {
+        clearTimeout(Number(button.dataset.armTimer));
+        button.textContent = button.dataset.idleText;
+        button.dataset.armed = "false";
+        return true;
+    }
+    button.dataset.idleText = button.textContent;
+    button.dataset.armed = "true";
+    button.textContent = armedText;
+    button.dataset.armTimer = String(setTimeout(function () {
+        button.textContent = button.dataset.idleText;
+        button.dataset.armed = "false";
+    }, CONFIRM_MS));
+    return false;
+}
 
 async function authUsb() {
     if (!navigator.serial) {
-        alert(NO_WEB_SERIAL);
+        notify(NO_WEB_SERIAL, "error");
         return;
     }
     try {
@@ -13,9 +42,10 @@ async function authUsb() {
         if (e && e.name === "NotFoundError") {
             return;
         }
-        alert("授权串口失败：" + (e && e.message ? e.message : String(e)));
+        notify("授权串口失败：" + (e && e.message ? e.message : String(e)), "error");
         return;
     }
+    Notices.flash("已授权串口，在下拉框里选中它后点「保存」");
     window.location.reload();
 }
 
@@ -38,7 +68,7 @@ function describeMediaError(e) {
 
 async function authMedia() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert(describeMediaError(null));
+        notify(describeMediaError(null), "error");
         return;
     }
     let stream;
@@ -47,13 +77,13 @@ async function authMedia() {
     } catch (e) {
         // 没有任何音频输入时，连带视频一起失败；视频才是必需的，退一步只要视频
         if (!(e && e.name === "NotFoundError")) {
-            alert(describeMediaError(e));
+            notify(describeMediaError(e), "error");
             return;
         }
         try {
             stream = await navigator.mediaDevices.getUserMedia({video: true});
         } catch (videoError) {
-            alert(describeMediaError(videoError));
+            notify(describeMediaError(videoError), "error");
             return;
         }
     }
@@ -61,6 +91,7 @@ async function authMedia() {
     stream.getTracks().forEach(function (track) {
         track.stop();
     });
+    Notices.flash("已授权采集卡，在下拉框里选中它后点「保存」");
     window.location.reload();
 }
 
@@ -130,7 +161,7 @@ function renderUsb() {
             }
         })
         .catch(e => {
-            alert(e.message);
+            Notices.show(e.message, {level: "error", key: "serial"});
         })
 
     if (settings.mouseClickMode) {
@@ -289,13 +320,13 @@ function fillBaudOptions(selected) {
 // 中止时返回 null（提示已经弹过了），成功则返回 action 的结果。
 async function withChip(action) {
     if (!navigator.serial) {
-        alert(NO_WEB_SERIAL);
+        notify(NO_WEB_SERIAL, "error");
         return null;
     }
     let settings = SettingsStore.readOrEmpty();
     let ports = await navigator.serial.getPorts();
     if (ports.length === 0) {
-        alert("这个网址下还没有授权任何串口。请先点「授权控制器」。");
+        notify("这个网址下还没有授权任何串口。请先点「授权控制器」。", "error");
         return null;
     }
 
@@ -305,7 +336,7 @@ async function withChip(action) {
         if (ports.length === 1) {
             port = ports[0];
         } else {
-            alert("有多个已授权的串口，请先在上面的下拉框里选中 CH9329 那个再写入。");
+            notify("有多个已授权的串口，请先在上面的下拉框里选中 CH9329 那个再写入。", "error");
             return null;
         }
     }
@@ -317,8 +348,8 @@ async function withChip(action) {
         await releasePort(port);
         let detail = Ch9329.describeAttempts(connection.attempts);
         console.warn("CH9329 探测失败：", connection.attempts);
-        alert("CH9329 没有应答，无法写入。\n\n探测结果：" + detail
-            + "\n\n如果显示「打不开串口」，多半是 KVM 页面还占着这个端口，先关掉其它标签页再试。");
+        notify("CH9329 没有应答，无法写入。\n\n探测结果：" + detail
+            + "\n\n如果显示「打不开串口」，多半是 KVM 页面还占着这个端口，先关掉其它标签页再试。", "error");
         return null;
     }
     try {
@@ -339,16 +370,16 @@ async function applyBaudRate() {
         return;
     }
     if (!result.ok) {
-        alert("写入失败：" + result.reason);
+        notify("写入失败：" + result.reason, "error");
         return;
     }
 
     SettingsStore.patch({baudRate: target});
     if (result.unchanged) {
-        alert("芯片波特率已经是 " + target + "，无需改动。");
+        notify("芯片波特率已经是 " + target + "，无需改动。");
         return;
     }
-    alert("已写入 " + target + "。请把 CH9329 断电重插（拔掉 USB 再插回）后生效。");
+    notifyReplug("已写入 " + target + "。请把 CH9329 断电重插（拔掉 USB 再插回）后生效。");
 }
 
 async function applyWorkingMode() {
@@ -360,24 +391,26 @@ async function applyWorkingMode() {
         return;
     }
     if (!result.ok) {
-        alert("写入失败：" + result.reason);
+        notify("写入失败：" + result.reason, "error");
         return;
     }
     // 只有真正写进芯片才记下来，否则下拉框会显示一个芯片上并不存在的模式
     SettingsStore.patch({workingMode: target});
     if (result.unchanged) {
-        alert("芯片工作模式已经是 " + target + "，无需改动。");
+        notify("芯片工作模式已经是 " + target + "，无需改动。");
         return;
     }
-    alert("已写入工作模式 " + target + "。请把 CH9329 断电重插（拔掉 USB 再插回）后生效。\n\n"
+    notifyReplug("已写入工作模式 " + target + "。请把 CH9329 断电重插（拔掉 USB 再插回）后生效。\n\n"
         + "被控端可能会把它当成一台新键盘而弹出识别向导，走完或关掉即可。");
 }
 
-async function restoreDefaults() {
-    if (!confirm("这会把芯片的参数配置和字符串描述符全部恢复出厂默认：\n"
-            + "波特率回到 9600，工作模式回到 0。\n\n确定继续吗？")) {
+async function restoreDefaults(button) {
+    if (!confirmByClickingTwice(button, "再点一次确认恢复")) {
+        Notices.show("恢复出厂会把芯片的参数配置和字符串描述符全部还原：波特率回到 9600，工作模式回到 0。"
+            + "确定的话 4 秒内再点一次。", {level: "warn", key: "settings", timeout: CONFIRM_MS});
         return;
     }
+    Notices.dismiss("settings");
     let result = await withChip(function (ch) {
         return ch.restoreDefaultCfg();
     });
@@ -386,11 +419,11 @@ async function restoreDefaults() {
     }
     if (!result.ok) {
         let status = result.status == null ? "无应答" : "0x" + result.status.toString(16);
-        alert("恢复出厂配置失败（" + status + "）");
+        notify("恢复出厂配置失败（" + status + "）", "error");
         return;
     }
     SettingsStore.patch({baudRate: 9600, workingMode: 0});
-    alert("已恢复出厂配置。请把 CH9329 断电重插（拔掉 USB 再插回）后生效，之后波特率是 9600。");
+    notifyReplug("已恢复出厂配置。请把 CH9329 断电重插（拔掉 USB 再插回）后生效，之后波特率是 9600。");
 }
 
 function collectConfig() {
@@ -459,15 +492,15 @@ function collectConfig() {
 function save() {
     let config = collectConfig();
     if (!SettingsStore.write(config)) {
-        alert("保存失败，浏览器可能禁用了本地存储");
+        notify("保存失败，浏览器可能禁用了本地存储", "error");
         return;
     }
     let profiles = Profiles.load(localStorage);
     if (profiles.active) {
         Profiles.save(localStorage, Profiles.updateActive(profiles, config));
-        alert("保存成功，已同步到配置「" + profiles.active + "」");
+        Notices.flash("保存成功，已同步到配置「" + profiles.active + "」");
     } else {
-        alert("保存成功");
+        Notices.flash("保存成功");
     }
     window.location.reload();
 }
@@ -500,48 +533,74 @@ function switchProfile() {
     }
     let result = Profiles.apply(state, name, SettingsStore.readOrEmpty());
     if (result.error) {
-        alert(result.error);
+        notify(result.error, "error");
         renderProfiles();
         return;
     }
     if (!SettingsStore.write(result.settings)) {
-        alert("切换失败，浏览器可能禁用了本地存储");
+        notify("切换失败，浏览器可能禁用了本地存储", "error");
         return;
     }
     Profiles.save(localStorage, result.state);
+    Notices.flash("已切换到配置「" + name + "」");
     window.location.reload();
+}
+
+// 起名用页内的输入框，不用 prompt：prompt 会挡住整页，也没法提示重名
+function saveProfileAs() {
+    let row = document.querySelector("#profileNameRow");
+    let input = document.querySelector("#profileName");
+    row.hidden = false;
+    input.value = Profiles.load(localStorage).active || "";
+    input.focus();
+    input.select();
+}
+
+function cancelProfileName() {
+    document.querySelector("#profileNameRow").hidden = true;
 }
 
 // 按表单上现在的样子存一份，同时也写成当前设置
-function saveProfileAs() {
+function confirmProfileName() {
     let state = Profiles.load(localStorage);
-    let name = prompt("给这台被控机起个名字（最多 " + Profiles.MAX_NAME_LENGTH + " 个字，同名会覆盖）",
-        state.active || "");
-    if (name == null) {
-        return;
-    }
+    let name = document.querySelector("#profileName").value;
     let config = collectConfig();
     let result = Profiles.saveAs(state, name, config);
     if (result.error) {
-        alert(result.error);
+        notify(result.error, "error");
+        document.querySelector("#profileName").focus();
         return;
     }
     if (!SettingsStore.write(config)) {
-        alert("保存失败，浏览器可能禁用了本地存储");
+        notify("保存失败，浏览器可能禁用了本地存储", "error");
         return;
     }
+    let existed = state.profiles.some(function (profile) {
+        return profile.name === result.state.active;
+    });
     Profiles.save(localStorage, result.state);
+    Notices.flash((existed ? "已更新配置「" : "已保存配置「") + result.state.active + "」");
     window.location.reload();
 }
 
-function deleteProfile() {
+function deleteProfile(button) {
     let state = Profiles.load(localStorage);
-    if (!state.active || !confirm("删除配置「" + state.active + "」？当前设置不受影响。")) {
+    if (!state.active || !confirmByClickingTwice(button, "再点一次确认删除")) {
         return;
     }
     Profiles.save(localStorage, Profiles.remove(state, state.active));
+    notify("已删除配置「" + state.active + "」，当前设置不受影响");
     renderProfiles();
 }
+
+document.querySelector("#profileName").addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        confirmProfileName();
+    } else if (event.key === "Escape") {
+        cancelProfileName();
+    }
+});
 
 function renderUsed() {
     let settings = SettingsStore.read();
@@ -575,6 +634,7 @@ renderUsb();
 renderAtx();
 renderUsed();
 renderProfiles();
+Notices.showFlash();
 
 (function clearServiceWorkerAndCaches() {
     if ('serviceWorker' in navigator) {
