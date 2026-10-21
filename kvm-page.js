@@ -246,92 +246,12 @@ let serialLost = false;
 // 同时在跑，晚到的旧连接靠它认出自己已经过时
 let serialGeneration = 0;
 
-// 顶部提示条，用来代替 alert。alert 会抢焦点触发 blur，把被控端上正按着的键
-// 全部松开；启动时视频、串口各弹一个还会一个接一个挡住画面。
-// options: {level: "info"|"warn"|"error", key, timeout, closable,
-//           link: {text, href}, action: {text, onClick}}
-// 同一个 key 只保留最新一条，重连之类反复出现的提示不会越堆越多。
-// error 默认不自动消失：里面常带排错用的详细信息，看一半没了等于白给。
-// 返回 {setMessage, remove}，进度类的提示靠它原地改字，不用反复重建。
 function showNotice(message, options) {
-    options = options || {};
-    let level = options.level || "info";
-    let stack = document.getElementById("noticeStack");
-    if (!stack) {
-        console.warn(message);
-        return {setMessage: function () {}, remove: function () {}};
-    }
-    if (options.key) {
-        dismissNotice(options.key);
-    }
-
-    let notice = document.createElement("div");
-    notice.className = "notice notice-" + level;
-    if (options.key) {
-        notice.dataset.key = options.key;
-    }
-
-    let body = document.createElement("div");
-    body.className = "notice-body";
-    let text = document.createElement("span");
-    text.textContent = message;
-    body.appendChild(text);
-    if (options.link) {
-        let link = document.createElement("a");
-        link.href = options.link.href;
-        link.textContent = options.link.text;
-        body.appendChild(link);
-    }
-    if (options.action) {
-        let action = document.createElement("button");
-        action.className = "notice-action";
-        action.type = "button";
-        action.textContent = options.action.text;
-        action.addEventListener("click", options.action.onClick);
-        body.appendChild(action);
-    }
-    notice.appendChild(body);
-
-    if (options.closable !== false) {
-        let close = document.createElement("button");
-        close.className = "notice-close";
-        close.type = "button";
-        close.setAttribute("aria-label", "关闭提示");
-        close.textContent = "×";
-        close.addEventListener("click", function () {
-            notice.remove();
-        });
-        notice.appendChild(close);
-    }
-
-    stack.appendChild(notice);
-
-    let timeout = PageLogic.noticeTimeout(level, options.timeout);
-    if (timeout > 0) {
-        setTimeout(function () {
-            notice.remove();
-        }, timeout);
-    }
-    return {
-        setMessage: function (next) {
-            text.textContent = next;
-        },
-        remove: function () {
-            notice.remove();
-        }
-    };
+    return Notices.show(message, options);
 }
 
 function dismissNotice(key) {
-    let stack = document.getElementById("noticeStack");
-    if (!stack) {
-        return;
-    }
-    stack.querySelectorAll(".notice").forEach(function (notice) {
-        if (notice.dataset.key === key) {
-            notice.remove();
-        }
-    });
+    Notices.dismiss(key);
 }
 
 // 在提示里滚动查看详细信息时，别让 document 上的滚轮监听把它当成被控端滚轮发出去
