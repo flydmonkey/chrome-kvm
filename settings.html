@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <title>设置 - Chrome KVM</title>
@@ -253,20 +253,38 @@
         <div class="field">
             <label for="choice4">屏幕分辨率</label>
             <select id="choice4" name="choice4">
-                <option value="1920x1080">1920x1080</option>
                 <option value="4096x2160">4096x2160</option>
                 <option value="3840x2160">3840x2160</option>
+                <option value="3440x1440">3440x1440</option>
+                <option value="2560x1600">2560x1600</option>
+                <option value="2560x1440">2560x1440</option>
+                <option value="2560x1080">2560x1080</option>
+                <option value="1920x1200">1920x1200</option>
+                <option value="1920x1080" selected>1920x1080</option>
                 <option value="1680x1050">1680x1050</option>
-                <option value="800x600">800x600</option>
-                <option value="1280x960">1280x960</option>
-                <option value="1280x1024">1280x1024</option>
-                <option value="1360x768">1360x768</option>
+                <option value="1600x1200">1600x1200</option>
+                <option value="1600x900">1600x900</option>
                 <option value="1440x1050">1440x1050</option>
                 <option value="1440x900">1440x900</option>
-                <option value="1600x900">1600x900</option>
-                <option value="1600x1200">1600x1200</option>
+                <option value="1366x768">1366x768</option>
+                <option value="1360x768">1360x768</option>
+                <option value="1280x1024">1280x1024</option>
+                <option value="1280x960">1280x960</option>
+                <option value="1280x800">1280x800</option>
+                <option value="1280x720">1280x720</option>
+                <option value="1024x768">1024x768</option>
+                <option value="800x600">800x600</option>
             </select>
             <p class="hint">填被控端系统里实际设置的分辨率</p>
+        </div>
+        <div class="field">
+            <label for="frameRate">采集帧率</label>
+            <select id="frameRate" name="frameRate">
+                <option value="0" selected>默认（浏览器决定，Chrome 通常是 30）</option>
+                <option value="30">30 fps</option>
+                <option value="60">60 fps</option>
+            </select>
+            <p class="hint">60 fps 画面更跟手，但要采集卡支持。不少采集卡在 1080p 下只有 30 fps，选了 60 会自动退回，分辨率优先</p>
         </div>
         <button type="button" class="confirm-button block" onclick="authMedia()">授权视频采集卡</button>
     </div>
@@ -308,7 +326,7 @@
             <p class="hint">
                 默认 1。
                 相对模式下发的是未经本机加速的原始鼠标计数（本机再加速一次会和被控端的加速叠加），
-                所以会比平时用桌面慢一截，调大这个值补回来。改完保存并刷新控制页生效。
+                所以会比平时用桌面慢一截，调大这个值补回来。保存后已经打开的控制页立即生效。
             </p>
         </div>
         <div class="field">

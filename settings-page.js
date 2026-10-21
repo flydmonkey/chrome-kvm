@@ -1,14 +1,67 @@
 // 设置页的页面逻辑：枚举设备、填下拉框、写波特率、存配置。
+const NO_WEB_SERIAL = "当前浏览器不支持 Web Serial，无法连接 CH9329。请用桌面版 Chrome 或 Edge 打开。";
+
 async function authUsb() {
-    await navigator.serial.requestPort();
+    if (!navigator.serial) {
+        alert(NO_WEB_SERIAL);
+        return;
+    }
+    try {
+        await navigator.serial.requestPort();
+    } catch (e) {
+        // 用户在选择框里点了取消就是 NotFoundError，那是有意为之，不用吵他
+        if (e && e.name === "NotFoundError") {
+            return;
+        }
+        alert("授权串口失败：" + (e && e.message ? e.message : String(e)));
+        return;
+    }
     window.location.reload();
 }
 
+function describeMediaError(e) {
+    let name = e && e.name;
+    if (name === "NotAllowedError") {
+        return "浏览器拒绝了摄像头/麦克风权限。点地址栏左侧的站点信息图标，把摄像头和麦克风改成「允许」后再试。";
+    }
+    if (name === "NotFoundError") {
+        return "没有找到视频采集设备。请确认采集卡已经插好。";
+    }
+    if (name === "NotReadableError") {
+        return "采集卡被占用，打不开。请关掉正在使用它的其它程序或标签页（包括控制页）再试。";
+    }
+    if (name === "SecurityError" || !navigator.mediaDevices) {
+        return "当前页面不是安全上下文，浏览器不允许访问采集卡。请用 HTTPS 或 localhost 打开。";
+    }
+    return "授权采集卡失败：" + (e && e.message ? e.message : String(e));
+}
+
 async function authMedia() {
-    navigator.mediaDevices.getUserMedia({video: true, audio: true})
-        .then((stream) => {
-            window.location.reload();
-        })
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert(describeMediaError(null));
+        return;
+    }
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+    } catch (e) {
+        // 没有任何音频输入时，连带视频一起失败；视频才是必需的，退一步只要视频
+        if (!(e && e.name === "NotFoundError")) {
+            alert(describeMediaError(e));
+            return;
+        }
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({video: true});
+        } catch (videoError) {
+            alert(describeMediaError(videoError));
+            return;
+        }
+    }
+    // 授权拿到就够了，不停掉的话刷新前这一下会一直占着采集卡
+    stream.getTracks().forEach(function (track) {
+        track.stop();
+    });
+    window.location.reload();
 }
 
 function fillDeviceOptions(selector, list, savedDeviceId) {
@@ -35,6 +88,9 @@ function renderMedia() {
             fillDeviceOptions(videoSelector, DeviceFilter.forKind(devices, "videoinput", savedVideo), savedVideo);
             fillDeviceOptions(audioSelector, DeviceFilter.forKind(devices, "audioinput", savedAudio), savedAudio);
 
+        document.querySelector("#frameRate").value =
+            String(SettingsStore.normalizeFrameRate(settings.frameRate));
+
         let resolutionElement = document.querySelector("#choice4");
         if (settings.resolution && settings.resolution.width && settings.resolution.height) {
             for (let i = 0; i < resolutionElement.options.length; i++) {
@@ -50,7 +106,12 @@ function renderMedia() {
 
 function renderUsb() {
     let settings = SettingsStore.readOrEmpty();
-    navigator.serial.getPorts()
+    // 没有 Web Serial 时直接调 getPorts 会同步抛错，后面的鼠标模式、波特率
+    // 这些下拉框也跟着不初始化了
+    let listPorts = navigator.serial
+        ? navigator.serial.getPorts()
+        : Promise.reject(new Error(NO_WEB_SERIAL));
+    listPorts
         .then((ports) => {
             let selector = document.querySelector("#choice2");
             let saved = SettingsStore.savedUsbFilter(settings);
@@ -59,7 +120,7 @@ function renderUsb() {
                 let info = port.getInfo();
                 let htmlOptionElement = document.createElement("option");
                 htmlOptionElement.setAttribute("value", JSON.stringify(info));
-                htmlOptionElement.innerText = "usbProductId=" + info.usbProductId + "," + "usbVendorId=" + info.usbVendorId;
+                htmlOptionElement.innerText = DeviceFilter.serialPortLabel(info);
                 if (saved
                     && saved.usbVendorId === info.usbVendorId
                     && saved.usbProductId === info.usbProductId) {
@@ -158,6 +219,10 @@ function fillBaudOptions(selected) {
 // 用完把端口还回去。只有中间那一步不同，所以把外壳抽出来。
 // 中止时返回 null（提示已经弹过了），成功则返回 action 的结果。
 async function withChip(action) {
+    if (!navigator.serial) {
+        alert(NO_WEB_SERIAL);
+        return null;
+    }
     let settings = SettingsStore.readOrEmpty();
     let ports = await navigator.serial.getPorts();
     if (ports.length === 0) {
@@ -303,6 +368,7 @@ function save() {
         audio: audio,
         usb: usb,
         resolution: resolution,
+        frameRate: SettingsStore.normalizeFrameRate(document.querySelector("#frameRate").value),
         mouseClickMode: "absolute",
         mouseModeVersion: 1,
         baudRate: parseInt(document.querySelector("#choice6").value) || 9600,
