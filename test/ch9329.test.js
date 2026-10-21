@@ -585,7 +585,7 @@ test("键盘状态机", async function (t) {
         ch.keydown("ControlLeft");
         ch.keydown("ShiftLeft");
         ch.keydown("KeyA");
-        await new Promise(function (r) { setTimeout(r, 80); });
+        await drain(ch);
         const last = chip.state.received[chip.state.received.length - 1];
         assert.strictEqual(last.data[0], 0x03, "左 Ctrl|左 Shift 应为 0x03");
         assert.strictEqual(last.data[2], 0x04);
@@ -597,7 +597,7 @@ test("键盘状态机", async function (t) {
         for (const key of keys) {
             ch.keydown(key);
         }
-        await new Promise(function (r) { setTimeout(r, 120); });
+        await drain(ch);
         const last = chip.state.received[chip.state.received.length - 1];
         assert.strictEqual(last.data.slice(2).filter(Boolean).length, 6);
         assert.ok(!last.data.includes(0x04), "最早按下的 A 应被挤出");
