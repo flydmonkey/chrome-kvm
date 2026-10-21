@@ -1118,7 +1118,23 @@ document.getElementById("profilePanel").addEventListener("wheel", function (even
 
 // ATX 电源：设置里选了继电器才出现按钮。继电器只在按的那一下打开，平时不占串口
 const POWER_ARM_MS = 4000;
+// 会丢数据的操作要连点两下，手滑点一下就让被控端断电或重启，代价太大
+const POWER_CONFIRM = {
+    long: {
+        button: "powerLong",
+        hint: "powerLongHint",
+        idle: "按住 6 秒，等于拔电，没保存的东西会丢",
+        armed: "再点一次确认强制关机"
+    },
+    reset: {
+        button: "powerReset",
+        hint: "powerResetHint",
+        idle: "立即重启，等于按机箱上的重启键，没保存的东西会丢",
+        armed: "再点一次确认重启"
+    }
+};
 let powerBusy = null;
+let powerArmed = null;
 let powerArmTimer = null;
 
 function currentAtx() {
@@ -1126,13 +1142,16 @@ function currentAtx() {
 }
 
 function renderPowerPanel() {
+    let atx = currentAtx();
     let button = document.getElementById("powerButton");
-    button.hidden = !currentAtx();
+    button.hidden = !atx;
     if (button.hidden) {
         togglePowerPanel(false);
     }
-    document.getElementById("powerShort").disabled = !!powerBusy;
-    document.getElementById("powerLong").disabled = !!powerBusy;
+    document.getElementById("powerReset").hidden = !(atx && atx.resetChannel);
+    ["powerShort", "powerLong", "powerReset"].forEach(function (id) {
+        document.getElementById(id).disabled = !!powerBusy;
+    });
 }
 
 function togglePowerPanel(force) {
@@ -1145,36 +1164,43 @@ function togglePowerPanel(force) {
         toggleOcrPanel(false);
         renderPowerPanel();
     } else {
-        disarmForceOff();
+        disarmPower();
     }
     panel.hidden = !open;
     document.getElementById("powerButton").setAttribute("aria-expanded", String(open));
 }
 
-function disarmForceOff() {
+function disarmPower() {
     clearTimeout(powerArmTimer);
     powerArmTimer = null;
-    document.getElementById("powerLong").dataset.armed = "false";
-    document.getElementById("powerLongHint").textContent = "按住 6 秒，等于拔电，没保存的东西会丢";
+    powerArmed = null;
+    Object.keys(POWER_CONFIRM).forEach(function (kind) {
+        let confirm = POWER_CONFIRM[kind];
+        document.getElementById(confirm.button).dataset.armed = "false";
+        document.getElementById(confirm.hint).textContent = confirm.idle;
+    });
 }
 
-// 强制关机要连点两下：手滑点一下就让被控端断电，代价太大
-function armForceOff() {
-    document.getElementById("powerLong").dataset.armed = "true";
-    document.getElementById("powerLongHint").textContent = "再点一次确认强制关机";
-    powerArmTimer = setTimeout(disarmForceOff, POWER_ARM_MS);
+function armPower(kind) {
+    disarmPower();
+    let confirm = POWER_CONFIRM[kind];
+    powerArmed = kind;
+    document.getElementById(confirm.button).dataset.armed = "true";
+    document.getElementById(confirm.hint).textContent = confirm.armed;
+    powerArmTimer = setTimeout(disarmPower, POWER_ARM_MS);
 }
 
 async function pressPower(kind) {
     let atx = currentAtx();
-    if (powerBusy || !atx) {
+    let channel = AtxRelay.channelFor(atx, kind);
+    if (powerBusy || !channel) {
         return;
     }
-    if (kind === "long" && !powerArmTimer) {
-        armForceOff();
+    if (POWER_CONFIRM[kind] && powerArmed !== kind) {
+        armPower(kind);
         return;
     }
-    disarmForceOff();
+    disarmPower();
     if (!navigator.serial) {
         showNotice("当前浏览器不支持 Web Serial，无法控制继电器。", {level: "error", key: "power"});
         return;
@@ -1205,12 +1231,12 @@ async function pressPower(kind) {
                 }
             } : undefined
         });
-        await AtxRelay.press(port, atx.channel, press.ms, cancel);
+        await AtxRelay.press(port, channel, press.ms, cancel);
         showNotice(cancel.cancelled ? "已提前松开电源键" : "已" + press.label, {key: "power", timeout: 3000});
     } catch (e) {
         // 继电器靠 USB 供电，拔掉就一定松开
         showNotice("继电器没响应：" + (e && e.message ? e.message : String(e))
-            + "。如果担心电源键还按着，拔掉继电器的 USB 线即可松开。", {level: "error", key: "power"});
+            + "。如果担心按键还按着，拔掉继电器的 USB 线即可松开。", {level: "error", key: "power"});
     } finally {
         if (port) {
             await port.close().catch(function (e) {

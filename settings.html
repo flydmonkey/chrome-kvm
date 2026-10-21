@@ -413,6 +413,11 @@
             <select id="atxChannel" name="atxChannel"></select>
             <p class="hint">单路继电器选 1。多路继电器选接了电源键的那一路</p>
         </div>
+        <div class="field">
+            <label for="atxResetChannel">复位键通道</label>
+            <select id="atxResetChannel" name="atxResetChannel"></select>
+            <p class="hint">两路以上的继电器可以再接主板的 RESET 两根针，控制页电源面板会多一个「按一下复位键」。不能和电源键同一路</p>
+        </div>
         <button type="button" class="confirm-button block" onclick="authUsb()">授权继电器</button>
     </div>
 

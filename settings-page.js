@@ -188,13 +188,35 @@ function renderAtx() {
     }
 
     let channelSelector = document.querySelector("#atxChannel");
+    let resetSelector = document.querySelector("#atxResetChannel");
+    let noReset = document.createElement("option");
+    noReset.value = "";
+    noReset.textContent = "不接复位键";
+    resetSelector.appendChild(noReset);
     AtxRelay.CHANNELS.forEach(function (channel) {
         let option = document.createElement("option");
         option.value = String(channel);
         option.textContent = "第 " + channel + " 路";
         option.selected = channel === (atx ? atx.channel : 1);
         channelSelector.appendChild(option);
+        let resetOption = option.cloneNode(true);
+        resetOption.selected = !!atx && channel === atx.resetChannel;
+        resetSelector.appendChild(resetOption);
     });
+    syncResetChannelOptions();
+    channelSelector.addEventListener("change", syncResetChannelOptions);
+}
+
+// 复位键不能和电源键同一路：把那一路禁掉，已经选中的退回「不接」
+function syncResetChannelOptions() {
+    let power = document.querySelector("#atxChannel").value;
+    let resetSelector = document.querySelector("#atxResetChannel");
+    Array.from(resetSelector.options).forEach(function (option) {
+        option.disabled = option.value === power;
+    });
+    if (resetSelector.value === power) {
+        resetSelector.value = "";
+    }
 }
 
 function collectAtx() {
@@ -205,7 +227,8 @@ function collectAtx() {
     return AtxRelay.normalize({
         deviceId: option.value,
         label: option.textContent,
-        channel: document.querySelector("#atxChannel").value
+        channel: document.querySelector("#atxChannel").value,
+        resetChannel: document.querySelector("#atxResetChannel").value
     });
 }
 
