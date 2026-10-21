@@ -65,6 +65,10 @@
         transition: background-color 0.15s, color 0.15s;
     }
 
+    .floating-toolbar button[hidden] {
+        display: none;
+    }
+
     .floating-toolbar button:hover {
         background-color: rgba(255, 255, 255, 0.12);
     }
@@ -290,8 +294,8 @@
         color: #f4f4f5;
     }
 
-    /* 快捷键面板：贴在工具栏右边，和工具栏同一套毛玻璃外观 */
-    .shortcut-panel {
+    /* 工具栏弹出的面板（快捷键、画面显示）：贴在工具栏右边，和工具栏同一套毛玻璃外观 */
+    .tool-panel {
         position: fixed;
         top: 50%;
         left: 64px;
@@ -312,7 +316,7 @@
         cursor: default;
     }
 
-    .shortcut-panel[hidden] {
+    .tool-panel[hidden] {
         display: none;
     }
 
@@ -385,8 +389,8 @@
     }
 
     .shortcut-item:focus-visible,
-    .shortcut-panel input:focus-visible,
-    .shortcut-panel button:focus-visible {
+    .tool-panel input:focus-visible,
+    .tool-panel button:focus-visible {
         outline: 2px solid #60a5fa;
         outline-offset: -2px;
     }
@@ -487,6 +491,94 @@
     .shortcut-error:empty {
         display: none;
     }
+
+    .view-panel {
+        width: 240px;
+    }
+
+    .view-options {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 8px;
+    }
+
+    .view-option {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 7px 10px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .view-option:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .view-option[aria-checked="true"] {
+        border-color: rgba(96, 165, 250, 0.5);
+        background-color: rgba(96, 165, 250, 0.14);
+    }
+
+    .view-option-hint {
+        color: #a1a1aa;
+        font-size: 12px;
+    }
+
+    .profile-hint {
+        margin: 0;
+        padding: 0 16px 12px;
+        color: #71717a;
+        font-size: 12px;
+    }
+
+    .profile-hint a {
+        color: #60a5fa;
+    }
+
+    /* 配置多了也别把面板撑出屏幕 */
+    #profileOptions {
+        overflow-y: auto;
+        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+
+    /* 放大时视频比窗口大，由脚本按指针位置摆放；超出的部分裁掉 */
+    #container {
+        position: relative;
+        overflow: hidden;
+    }
+
+    #video {
+        position: absolute;
+        left: 0;
+        top: 0;
+        /* 触摸手势全部自己处理，不让浏览器拿去滚动、缩放页面 */
+        touch-action: none;
+    }
+
+    /* 屏幕键盘用的输入框：要能聚焦才叫得出软键盘，但不该被看见 */
+    .soft-keyboard {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        border: 0;
+        opacity: 0;
+        font-size: 16px;
+    }
+
+    .floating-toolbar button[aria-pressed="true"] {
+        color: #60a5fa;
+        background-color: rgba(96, 165, 250, 0.16);
+    }
 </style>
 
 <body>
@@ -560,6 +652,29 @@
         </svg>
         <span class="tooltip">截图（保存 PNG 并复制）</span>
     </button>
+    <button onclick="toggleViewPanel()" id="viewButton" aria-label="画面显示" aria-expanded="false"
+            aria-controls="viewPanel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.5"/>
+            <path d="M15.5 15.5L21 21"/>
+            <path d="M8 10.5h5"/>
+            <path d="M10.5 8v5"/>
+        </svg>
+        <span class="tooltip" id="viewTooltip">画面：适应窗口</span>
+    </button>
+    <button onclick="toggleProfilePanel()" id="profileButton" aria-label="切换被控机" aria-expanded="false"
+            aria-controls="profilePanel" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="3" width="13" height="10" rx="1.5"/>
+            <path d="M6 17h5"/>
+            <path d="M8.5 13v4"/>
+            <path d="M18 8h4v12h-4z"/>
+            <path d="M20 16h.01"/>
+        </svg>
+        <span class="tooltip" id="profileTooltip">被控机</span>
+    </button>
 
     <div class="toolbar-divider"></div>
 
@@ -596,6 +711,19 @@
             <path d="M9 16h4"/>
         </svg>
         <span class="tooltip">粘贴文本</span>
+    </button>
+    <button onclick="toggleSoftKeyboard()" id="softKeyboardButton" aria-label="屏幕键盘" aria-pressed="false" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="5" width="20" height="11" rx="2"/>
+            <path d="M6 9h.01"/>
+            <path d="M10 9h.01"/>
+            <path d="M14 9h.01"/>
+            <path d="M18 9h.01"/>
+            <path d="M8 12.5h8"/>
+            <path d="M10 19.5l2 1.5 2-1.5"/>
+        </svg>
+        <span class="tooltip">屏幕键盘</span>
     </button>
     <button onclick="releaseAllInput()" aria-label="强制松开所有键">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -641,7 +769,7 @@
         <span class="tooltip" id="toggleTooltip">展开</span>
     </button>
 </div>
-<div class="shortcut-panel" id="shortcutPanel" role="dialog" aria-label="快捷键" hidden>
+<div class="tool-panel" id="shortcutPanel" role="dialog" aria-label="快捷键" hidden>
     <div class="shortcut-header">
         <span>快捷键</span>
         <button type="button" class="shortcut-close" onclick="toggleShortcutPanel(false)" aria-label="关闭">×</button>
@@ -658,10 +786,30 @@
         <p class="shortcut-hint">用 + 连接同时按的键；多步用空格隔开，如「Win+R Enter」。修饰键可写 Ctrl、Shift、Alt、Win，Mac 上写 Cmd、Option。</p>
     </div>
 </div>
+<input class="soft-keyboard" id="softKeyboard" type="text" aria-label="屏幕键盘输入" autocomplete="off"
+       autocorrect="off" autocapitalize="off" spellcheck="false">
+<div class="tool-panel view-panel" id="viewPanel" role="dialog" aria-label="画面显示" hidden>
+    <div class="shortcut-header">
+        <span>画面显示</span>
+        <button type="button" class="shortcut-close" onclick="toggleViewPanel(false)" aria-label="关闭">×</button>
+    </div>
+    <div class="view-options" id="viewOptions" role="radiogroup" aria-label="显示方式"></div>
+</div>
+<div class="tool-panel view-panel" id="profilePanel" role="dialog" aria-label="切换被控机" hidden>
+    <div class="shortcut-header">
+        <span>切换被控机</span>
+        <button type="button" class="shortcut-close" onclick="toggleProfilePanel(false)" aria-label="关闭">×</button>
+    </div>
+    <div class="view-options" id="profileOptions" role="radiogroup" aria-label="被控机配置"></div>
+    <p class="profile-hint">切换会按那份配置重开采集卡和键鼠。新增、修改配置请到 <a href="settings.html">设置页</a>。</p>
+</div>
 <script src="settings-store.js"></script>
+<script src="profiles.js"></script>
 <script src="status-text.js"></script>
 <script src="page-logic.js"></script>
 <script src="shortcuts.js"></script>
+<script src="view-modes.js"></script>
+<script src="touch-input.js"></script>
 <script src="ch9329.js"></script>
 <script src="kvm-page.js"></script>
 </body>

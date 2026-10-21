@@ -231,6 +231,31 @@
     <p class="page-hint">选择采集卡和 CH9329 控制器，保存后回到控制页。浏览器的设备授权是按网址记的，换网址要重新授权。</p>
 
     <div class="section">
+        <div class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="3" width="20" height="13" rx="2"/>
+                <path d="M8 21h8"/>
+                <path d="M12 16v5"/>
+            </svg>
+            被控机配置
+        </div>
+        <div class="field">
+            <label for="profileSelect">当前配置</label>
+            <select id="profileSelect" name="profileSelect" onchange="switchProfile()"></select>
+            <p class="hint">
+                接了多台被控机时，每台的采集卡、串口、分辨率、鼠标模式各存一份，选中即切换。
+                选中某份配置后点「保存」会同步更新它。波特率和芯片工作模式是芯片自己的状态，不随配置切换。
+                控制页工具栏也能快速切换。
+            </p>
+        </div>
+        <div class="actions">
+            <button type="button" class="confirm-button" onclick="saveProfileAs()">按当前表单另存为…</button>
+            <button type="button" class="confirm-button" id="profileDelete" onclick="deleteProfile()">删除此配置</button>
+        </div>
+    </div>
+
+    <div class="section">
         <!-- 图标和控制页工具栏上的视频状态用的是同一个 -->
         <div class="section-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -380,6 +405,7 @@
     </div>
 </div>
 <script src="settings-store.js"></script>
+<script src="profiles.js"></script>
 <script src="device-filter.js"></script>
 <script src="ch9329.js"></script>
 <script src="settings-page.js"></script>

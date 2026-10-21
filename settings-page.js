@@ -324,7 +324,7 @@ async function restoreDefaults() {
     alert("已恢复出厂配置。请把 CH9329 断电重插（拔掉 USB 再插回）后生效，之后波特率是 9600。");
 }
 
-function save() {
+function collectConfig() {
     let choice1 = document.querySelector("#choice1");
     let video = {}
     if (choice1.selectedOptions.length > 0) {
@@ -383,13 +383,94 @@ function save() {
     if (mouseClickMode.value === "absolute" || mouseClickMode.value === "relative") {
         config.mouseClickMode = mouseClickMode.value;
     }
+    return config;
+}
 
+function save() {
+    let config = collectConfig();
     if (!SettingsStore.write(config)) {
         alert("保存失败，浏览器可能禁用了本地存储");
         return;
     }
-    alert("保存成功")
+    let profiles = Profiles.load(localStorage);
+    if (profiles.active) {
+        Profiles.save(localStorage, Profiles.updateActive(profiles, config));
+        alert("保存成功，已同步到配置「" + profiles.active + "」");
+    } else {
+        alert("保存成功");
+    }
     window.location.reload();
+}
+
+function renderProfiles() {
+    let state = Profiles.load(localStorage);
+    let selector = document.querySelector("#profileSelect");
+    let none = document.createElement("option");
+    none.value = "";
+    none.textContent = state.profiles.length ? "（不使用配置）" : "（还没有保存的配置）";
+    selector.replaceChildren(none);
+    state.profiles.forEach(function (profile) {
+        let option = document.createElement("option");
+        option.value = profile.name;
+        option.textContent = profile.name;
+        selector.appendChild(option);
+    });
+    selector.value = state.active || "";
+    document.querySelector("#profileDelete").disabled = !state.active;
+}
+
+// 选中一份配置就把它写成当前设置，再刷新让下拉框按新设置重新填
+function switchProfile() {
+    let name = document.querySelector("#profileSelect").value;
+    let state = Profiles.load(localStorage);
+    if (!name) {
+        Profiles.save(localStorage, Object.assign({}, state, {active: null}));
+        renderProfiles();
+        return;
+    }
+    let result = Profiles.apply(state, name, SettingsStore.readOrEmpty());
+    if (result.error) {
+        alert(result.error);
+        renderProfiles();
+        return;
+    }
+    if (!SettingsStore.write(result.settings)) {
+        alert("切换失败，浏览器可能禁用了本地存储");
+        return;
+    }
+    Profiles.save(localStorage, result.state);
+    window.location.reload();
+}
+
+// 按表单上现在的样子存一份，同时也写成当前设置
+function saveProfileAs() {
+    let state = Profiles.load(localStorage);
+    let name = prompt("给这台被控机起个名字（最多 " + Profiles.MAX_NAME_LENGTH + " 个字，同名会覆盖）",
+        state.active || "");
+    if (name == null) {
+        return;
+    }
+    let config = collectConfig();
+    let result = Profiles.saveAs(state, name, config);
+    if (result.error) {
+        alert(result.error);
+        return;
+    }
+    if (!SettingsStore.write(config)) {
+        alert("保存失败，浏览器可能禁用了本地存储");
+        return;
+    }
+    Profiles.save(localStorage, result.state);
+    window.location.reload();
+}
+
+function deleteProfile() {
+    let state = Profiles.load(localStorage);
+    if (!state.active || !confirm("删除配置「" + state.active + "」？当前设置不受影响。")) {
+        return;
+    }
+    Profiles.save(localStorage, Profiles.remove(state, state.active));
+    renderProfiles();
 }
 
 function renderUsed() {
@@ -421,6 +502,7 @@ function showSavedLine(selector, name, device) {
 renderMedia();
 renderUsb();
 renderUsed();
+renderProfiles();
 
 (function clearServiceWorkerAndCaches() {
     if ('serviceWorker' in navigator) {

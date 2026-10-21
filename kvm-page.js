@@ -593,9 +593,32 @@ async function restartSerial(settings) {
 
 // 在设置页点保存后，控制页不用再手动刷新。storage 事件只在别的标签页改了
 // localStorage 时触发，正好对应设置页保存；本页自己 patch 波特率不会触发
+let appliedSettings = null;
+
+// 返回改了哪几项的名字，调用方自己决定怎么提示
+function applySettingsUpdate(next) {
+    let previous = appliedSettings || {};
+    appliedSettings = next;
+    let changes = PageLogic.settingsChanges(previous, next, Ch9329.RELATIVE_SPEED, SettingsStore);
+    if (changes.relativeSpeed !== null) {
+        Ch9329.RELATIVE_SPEED = changes.relativeSpeed;
+    }
+    if (changes.media) {
+        applyMediaSettings(changes.mediaArgs, null, false);
+    }
+    if (changes.serial) {
+        restartSerial(next);
+    }
+    return changes.labels;
+}
+
 function bindSettingsSync(initial) {
-    let applied = initial;
+    appliedSettings = initial;
     window.addEventListener('storage', function (event) {
+        if (event.key === Profiles.STORAGE_KEY) {
+            renderProfilePanel();
+            return;
+        }
         if (event.key !== SettingsStore.KEY) {
             return;
         }
@@ -603,20 +626,10 @@ function bindSettingsSync(initial) {
         if (!next) {
             return;
         }
-        let previous = applied;
-        applied = next;
-        let changes = PageLogic.settingsChanges(previous, next, Ch9329.RELATIVE_SPEED, SettingsStore);
-        if (changes.relativeSpeed !== null) {
-            Ch9329.RELATIVE_SPEED = changes.relativeSpeed;
-        }
-        if (changes.media) {
-            applyMediaSettings(changes.mediaArgs, null, false);
-        }
-        if (changes.serial) {
-            restartSerial(next);
-        }
-        if (changes.labels.length) {
-            showNotice("设置已更新：" + changes.labels.join("、"), {key: "settings", timeout: 3000});
+        let labels = applySettingsUpdate(next);
+        renderProfilePanel();
+        if (labels.length) {
+            showNotice("设置已更新：" + labels.join("、"), {key: "settings", timeout: 3000});
         }
     });
 }
@@ -747,6 +760,14 @@ function open() {
     // 的，相对位移排队时累加，都不会淹没串口。只在安全上下文里有，没有就退回
     const moveEvent = ('onpointerrawupdate' in window) ? 'pointerrawupdate' : 'mousemove';
     videoElement.addEventListener(moveEvent, (event) => {
+        // 触摸有自己的一套手势，见 bindTouch
+        if (event.pointerType === "touch") {
+            return;
+        }
+        if (!pointerLocked()) {
+            // 放大时先按指针把画面摆好，再换算坐标，两边才对得上
+            panView(event.clientX, event.clientY);
+        }
         if (!ch) {
             return;
         }
@@ -787,6 +808,8 @@ function open() {
         ch.mouseButtonUp(event.button);
     });
 
+    bindTouch();
+
     // 失焦/切走页面时强制松开所有键，防止被控端卡住
     window.addEventListener('blur', () => {
         if (ch) {
@@ -813,6 +836,8 @@ function toggleToolbar() {
     const collapsed = toolbar.classList.contains('hidden');
     if (collapsed) {
         toggleShortcutPanel(false);
+        toggleViewPanel(false);
+        toggleProfilePanel(false);
     }
     document.querySelector('#toggleTooltip').innerText = collapsed ? '展开' : '收起';
     document.querySelector('#toggleButton').setAttribute('aria-label', collapsed ? '展开工具栏' : '收起工具栏');
@@ -833,7 +858,171 @@ function toggleFullScreen() {
 // 画面尺寸要等元数据到了才有，所以拿到流之后还得再刷一次状态
 ['loadedmetadata', 'resize', 'playing', 'emptied'].forEach(function (name) {
     videoElement.addEventListener(name, renderVideoStatus);
+    // 1:1 和放大要按画面的真实尺寸算，被控端换分辨率时也会触发 resize
+    videoElement.addEventListener(name, applyViewLayout);
 });
+
+let viewMode = ViewModes.load(localStorage);
+let viewPointer = null;
+let viewBox = null;
+
+function viewportSize() {
+    return {width: window.innerWidth, height: window.innerHeight};
+}
+
+function applyViewLayout() {
+    let viewport = viewportSize();
+    viewBox = ViewModes.layout(viewMode, viewport, {
+        width: videoElement.videoWidth,
+        height: videoElement.videoHeight
+    }, window.devicePixelRatio || 1);
+    let offset = ViewModes.panOffset(viewBox, viewport, viewPointer);
+    let style = videoElement.style;
+    style.objectFit = viewBox.objectFit;
+    style.width = viewBox.width + "px";
+    style.height = viewBox.height + "px";
+    style.left = offset.left + "px";
+    style.top = offset.top + "px";
+}
+
+function panView(clientX, clientY) {
+    viewPointer = {x: clientX, y: clientY};
+    if (viewBox && ViewModes.pans(viewBox, viewportSize())) {
+        applyViewLayout();
+    }
+}
+
+function setViewMode(mode) {
+    viewMode = ViewModes.save(localStorage, mode);
+    applyViewLayout();
+    renderViewPanel();
+}
+
+function renderViewPanel() {
+    let label = ViewModes.label(viewMode);
+    document.getElementById("viewTooltip").textContent = "画面：" + label;
+    document.getElementById("viewButton").setAttribute("aria-label", "画面显示：" + label);
+    let options = document.getElementById("viewOptions");
+    options.textContent = "";
+    ViewModes.MODES.forEach(function (mode) {
+        let button = document.createElement("button");
+        button.type = "button";
+        button.className = "view-option";
+        button.setAttribute("role", "radio");
+        button.setAttribute("aria-checked", String(mode.id === viewMode));
+        let name = document.createElement("span");
+        name.textContent = mode.label;
+        let hint = document.createElement("span");
+        hint.className = "view-option-hint";
+        hint.textContent = mode.hint;
+        button.appendChild(name);
+        button.appendChild(hint);
+        button.addEventListener("click", function () {
+            setViewMode(mode.id);
+        });
+        options.appendChild(button);
+    });
+}
+
+function toggleViewPanel(force) {
+    let panel = document.getElementById("viewPanel");
+    let open = typeof force === "boolean" ? force : panel.hidden;
+    if (open) {
+        toggleShortcutPanel(false);
+        toggleProfilePanel(false);
+        renderViewPanel();
+    }
+    panel.hidden = !open;
+    document.getElementById("viewButton").setAttribute("aria-expanded", String(open));
+}
+
+window.addEventListener("resize", applyViewLayout);
+// 别的标签页改了显示方式（比如同时开着两个控制页），这边跟着换
+window.addEventListener("storage", function (event) {
+    if (event.key === ViewModes.STORAGE_KEY) {
+        viewMode = ViewModes.load(localStorage);
+        applyViewLayout();
+        renderViewPanel();
+    }
+});
+applyViewLayout();
+renderViewPanel();
+document.getElementById("viewPanel").addEventListener("wheel", function (event) {
+    event.stopPropagation();
+}, {passive: true});
+
+// 被控机配置的快速切换。只有一份配置时没什么可切的，按钮藏起来
+function renderProfilePanel() {
+    let state = Profiles.load(localStorage);
+    let button = document.getElementById("profileButton");
+    button.hidden = state.profiles.length < 2;
+    if (button.hidden) {
+        toggleProfilePanel(false);
+    }
+    let label = state.active || "未选择配置";
+    document.getElementById("profileTooltip").textContent = "被控机：" + label;
+    button.setAttribute("aria-label", "切换被控机，当前：" + label);
+    let options = document.getElementById("profileOptions");
+    options.textContent = "";
+    state.profiles.forEach(function (profile) {
+        let option = document.createElement("button");
+        option.type = "button";
+        option.className = "view-option";
+        option.setAttribute("role", "radio");
+        option.setAttribute("aria-checked", String(profile.name === state.active));
+        let name = document.createElement("span");
+        name.textContent = profile.name;
+        let hint = document.createElement("span");
+        hint.className = "view-option-hint";
+        hint.textContent = Profiles.summary(profile.settings);
+        option.appendChild(name);
+        option.appendChild(hint);
+        option.addEventListener("click", function () {
+            switchProfile(profile.name);
+        });
+        options.appendChild(option);
+    });
+}
+
+function switchProfile(name) {
+    let state = Profiles.load(localStorage);
+    toggleProfilePanel(false);
+    if (state.active === name) {
+        return;
+    }
+    let result = Profiles.apply(state, name, SettingsStore.readOrEmpty());
+    if (result.error) {
+        showNotice(result.error, {level: "error", key: "settings", timeout: 4000});
+        renderProfilePanel();
+        return;
+    }
+    if (!SettingsStore.write(result.settings)) {
+        showNotice("切换失败，浏览器可能禁用了本地存储", {level: "error", key: "settings", timeout: 4000});
+        return;
+    }
+    Profiles.save(localStorage, result.state);
+    // 本页自己写 localStorage 不会收到 storage 事件，得自己把新设置应用上
+    applySettingsUpdate(result.settings);
+    renderProfilePanel();
+    showNotice("已切换到「" + name + "」", {key: "settings", timeout: 3000});
+}
+
+function toggleProfilePanel(force) {
+    let panel = document.getElementById("profilePanel");
+    let open = typeof force === "boolean" ? force : panel.hidden;
+    if (open) {
+        toggleShortcutPanel(false);
+        toggleViewPanel(false);
+        renderProfilePanel();
+    }
+    panel.hidden = !open;
+    document.getElementById("profileButton").setAttribute("aria-expanded", String(open));
+}
+
+renderProfilePanel();
+document.getElementById("profilePanel").addEventListener("wheel", function (event) {
+    event.stopPropagation();
+}, {passive: true});
 
 // Win、Alt+Tab、Esc、Ctrl+W 这些键默认被本机的浏览器和系统吃掉，光靠
 // preventDefault 拦不住，根本到不了被控端。Keyboard Lock 能把它们截下来，
@@ -1223,6 +1412,8 @@ function toggleShortcutPanel(force) {
     let panel = document.getElementById("shortcutPanel");
     let open = typeof force === "boolean" ? force : panel.hidden;
     if (open) {
+        toggleViewPanel(false);
+        toggleProfilePanel(false);
         renderShortcutPanel();
     }
     panel.hidden = !open;
@@ -1349,6 +1540,195 @@ function addCustomShortcut() {
     window.addEventListener("storage", function (event) {
         if (event.key === Shortcuts.STORAGE_KEY && !panel.hidden) {
             renderShortcutPanel();
+        }
+    });
+})();
+
+// 触屏：手势规则在 touch-input.js，这里只负责把动作落到 Ch9329 上
+function bindTouch() {
+    let gestures = null;
+    let longPressTimer = null;
+    const BUTTONS = {left: {bits: 0x01, index: 0}, right: {bits: 0x02, index: 2}};
+
+    function pressButton(action, button) {
+        if (action.x != null) {
+            panView(action.x, action.y);
+            ch.mouseButtonDown(videoElement, action.x, action.y, button.bits);
+            return;
+        }
+        // 相对模式的按键不带坐标；mouseButtonDown 会把传入的坐标记成差分基准，
+        // 随便给个值会让之后的鼠标移动跳一大段，所以按完把基准清掉
+        ch.mouseButtonDown(videoElement, 0, 0, button.bits);
+        ch.resetRelativeOrigin();
+    }
+
+    function perform(actions) {
+        if (!ch) {
+            return;
+        }
+        actions.forEach(function (action) {
+            let button = BUTTONS[action.button];
+            if (action.type === "move") {
+                panView(action.x, action.y);
+                ch.mouseMove(videoElement, action.x, action.y);
+            } else if (action.type === "moveBy") {
+                ch.mouseMoveBy(action.dx, action.dy);
+            } else if (action.type === "down") {
+                pressButton(action, button);
+            } else if (action.type === "up") {
+                ch.mouseButtonUp(button.index);
+            } else if (action.type === "click") {
+                pressButton(action, button);
+                ch.mouseButtonUp(button.index);
+            } else if (action.type === "scroll") {
+                ch.mouseScroll(action.notches);
+            }
+        });
+    }
+
+    videoElement.addEventListener("pointerdown", function (event) {
+        if (event.pointerType !== "touch") {
+            return;
+        }
+        // 不拦的话浏览器还会补发一套 mousedown/mouseup，同一下点击就发了两遍
+        event.preventDefault();
+        if (!ch) {
+            return;
+        }
+        let absolute = ch.isMouseAbsolute();
+        // 串口重连后鼠标模式可能变了，空闲时按当前模式重建
+        if (!gestures || (!gestures.active() && gestures.absolute !== absolute)) {
+            gestures = TouchInput.createGestures(absolute);
+        }
+        try {
+            videoElement.setPointerCapture(event.pointerId);
+        } catch (e) {
+            // 拿不到捕获也能用，只是手指滑出画面后就收不到移动了
+        }
+        perform(gestures.down(event.pointerId, event.clientX, event.clientY, event.timeStamp));
+        clearTimeout(longPressTimer);
+        longPressTimer = setTimeout(function () {
+            if (gestures) {
+                perform(gestures.tick(performance.now()));
+            }
+        }, TouchInput.LONG_PRESS_MS + 20);
+    });
+
+    videoElement.addEventListener("pointermove", function (event) {
+        if (event.pointerType !== "touch" || !gestures) {
+            return;
+        }
+        perform(gestures.move(event.pointerId, event.clientX, event.clientY));
+    });
+
+    videoElement.addEventListener("pointerup", function (event) {
+        if (event.pointerType !== "touch" || !gestures) {
+            return;
+        }
+        perform(gestures.up(event.pointerId, event.clientX, event.clientY, event.timeStamp));
+    });
+
+    videoElement.addEventListener("pointercancel", function (event) {
+        if (event.pointerType !== "touch" || !gestures) {
+            return;
+        }
+        perform(gestures.cancel(event.pointerId));
+    });
+}
+
+// 屏幕键盘：聚焦一个看不见的输入框把系统软键盘叫出来，打进去的字逐个敲给被控端。
+// 只能打 US 键盘能直接打出的字符，和粘贴一样
+let softKeyboardQueue = Promise.resolve();
+
+function sendSoftKeys(task) {
+    softKeyboardQueue = softKeyboardQueue.then(task).catch(function (e) {
+        console.warn("屏幕键盘发送失败", e);
+    });
+}
+
+function softTypeText(text) {
+    sendSoftKeys(async function () {
+        if (!ch || pasting || keyRepeating) {
+            return;
+        }
+        for (const char of text) {
+            let info = ch.resolveTypeChar(char);
+            if (info && info.code != null) {
+                await ch.tapKey(info.code, info.shift);
+            }
+        }
+    });
+}
+
+function softTapKey(code) {
+    sendSoftKeys(async function () {
+        if (!ch || pasting || keyRepeating) {
+            return;
+        }
+        await ch.tapCombo([code]);
+    });
+}
+
+function toggleSoftKeyboard() {
+    let input = document.getElementById("softKeyboard");
+    if (document.activeElement === input) {
+        input.blur();
+    } else {
+        input.focus();
+    }
+    // 窗口本身没有焦点时 focus/blur 事件不会派发，按钮状态按实际焦点定
+    document.getElementById("softKeyboardButton").setAttribute("aria-pressed",
+        String(document.activeElement === input));
+}
+
+(function bindSoftKeyboard() {
+    let input = document.getElementById("softKeyboard");
+    let button = document.getElementById("softKeyboardButton");
+    if (!input || !button) {
+        return;
+    }
+    // 只在有触摸屏的设备上露出按钮，桌面上有实体键盘用不着
+    if (navigator.maxTouchPoints > 0) {
+        button.hidden = false;
+    }
+    input.addEventListener("focus", function () {
+        button.setAttribute("aria-pressed", "true");
+    });
+    input.addEventListener("blur", function () {
+        button.setAttribute("aria-pressed", "false");
+        input.value = "";
+    });
+    input.addEventListener("keydown", function (event) {
+        let code = TouchInput.softKeyCode(event.key);
+        if (code) {
+            event.preventDefault();
+            softTapKey(code);
+        }
+    });
+    input.addEventListener("beforeinput", function (event) {
+        let code = TouchInput.inputTypeKey(event.inputType);
+        if (code && event.cancelable) {
+            event.preventDefault();
+            softTapKey(code);
+        }
+    });
+    // 软键盘的联想输入会先「组字」，组完才是最终的字；组字期间框里的内容随时会变，
+    // 所以只在不组字的时候把框里的字发出去再清空
+    input.addEventListener("input", function (event) {
+        if (event.isComposing) {
+            return;
+        }
+        let text = input.value;
+        input.value = "";
+        if (text) {
+            softTypeText(text);
+        }
+    });
+    input.addEventListener("compositionend", function () {
+        let text = input.value;
+        input.value = "";
+        if (text) {
+            softTypeText(text);
         }
     });
 })();
