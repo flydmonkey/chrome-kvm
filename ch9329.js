@@ -274,7 +274,11 @@ function Ch9329(writer, mouseAbsolute, reader) {
         });
     }
 
-    this._transfer = async function (packet, retries) {
+    // query 为 true 的是查询类命令（读信息、读写配置），它们本来就是为了拿回应答
+    // 才发的。降级之后普通包不再等应答，但查询照样要等：一来不等就永远拿不到
+    // 结果，状态栏会一直误报「芯片无应答」；二来它正好用来探测芯片是不是又
+    // 能应答了，能的话就恢复等应答发送，不必重连
+    this._transfer = async function (packet, retries, query) {
         let cmd = packet[3];
         let attempts = (retries == null ? 1 : retries) + 1;
         for (let attempt = 0; attempt < attempts; attempt++) {
@@ -293,7 +297,7 @@ function Ch9329(writer, mouseAbsolute, reader) {
                 }
                 return null;
             }
-            if (!reader || !this._ackSupported) {
+            if (!reader || (!this._ackSupported && !query)) {
                 // 芯片靠 ≥3ms 的空闲间隔判断一包结束（协议里的「串口通信包间隔」，
                 // 默认 3ms）。等应答时这个间隔天然存在；不等应答时必须自己留出来，
                 // 否则连续的移动包会被粘成一包，芯片越解析越乱。
@@ -307,13 +311,19 @@ function Ch9329(writer, mouseAbsolute, reader) {
             if (!frame) {
                 this._ackMisses++;
                 if (this._ackMisses >= 3) {
-                    this._ackSupported = false;
-                    console.warn("CH9329 连续无应答，已切换为不等应答发送");
+                    if (this._ackSupported) {
+                        this._ackSupported = false;
+                        console.warn("CH9329 连续无应答，已切换为不等应答发送");
+                    }
                     return null;
                 }
                 continue;
             }
             this._ackMisses = 0;
+            if (!this._ackSupported) {
+                this._ackSupported = true;
+                console.info("CH9329 恢复应答，重新切回等应答发送");
+            }
             if (frame.cmd === (cmd | 0x80)) {
                 return frame;
             }
@@ -339,7 +349,7 @@ function Ch9329(writer, mouseAbsolute, reader) {
             if (startedAt) {
                 this.moveStats.sent++;
             }
-            let frame = packet ? await this._transfer(packet, job.retries) : null;
+            let frame = packet ? await this._transfer(packet, job.retries, job.query) : null;
             if (startedAt) {
                 let waited = Date.now() - startedAt;
                 this.moveStats.totalWaitMs += waited;
@@ -435,7 +445,8 @@ function Ch9329(writer, mouseAbsolute, reader) {
     this.getInfo = async function () {
         let frame = await this._enqueue({
             packet: this.toUnit8Array([0x57, 0xAB, this.ADDR, 0x01, 0x00]),
-            retries: 1
+            retries: 1,
+            query: true
         });
         if (!frame || frame.cmd !== 0x81 || !frame.data || frame.data.length < 4) {
             return null;
@@ -464,7 +475,8 @@ function Ch9329(writer, mouseAbsolute, reader) {
     this.getParaCfg = async function () {
         let frame = await this._enqueue({
             packet: this.toUnit8Array([0x57, 0xAB, this.ADDR, 0x08, 0x00]),
-            retries: 1
+            retries: 1,
+            query: true
         });
         // CH9329F 会多回 15 个字节的补零，所以是「不少于 50」而不是「正好 50」。
         // 有用的配置项都在前 50 字节里，写回去时也只写这 50 个（协议规定的长度）
@@ -484,7 +496,7 @@ function Ch9329(writer, mouseAbsolute, reader) {
         for (let i = 0; i < this.PARA_CFG_LENGTH; i++) {
             data.push(cfg[i]);
         }
-        let frame = await this._enqueue({packet: this.toUnit8Array(data), retries: 1});
+        let frame = await this._enqueue({packet: this.toUnit8Array(data), retries: 1, query: true});
         if (!frame || frame.cmd !== 0x89) {
             return {ok: false, status: frame ? frame.data[0] : null};
         }
@@ -575,7 +587,8 @@ function Ch9329(writer, mouseAbsolute, reader) {
     this.restoreDefaultCfg = async function () {
         let frame = await this._enqueue({
             packet: this.toUnit8Array([0x57, 0xAB, this.ADDR, 0x0C, 0x00]),
-            retries: 1
+            retries: 1,
+            query: true
         });
         if (!frame || frame.cmd !== 0x8C) {
             return {ok: false, status: frame ? frame.data[0] : null};

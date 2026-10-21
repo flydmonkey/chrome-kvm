@@ -207,6 +207,46 @@ test("每条命令都等芯片应答", async function (t) {
             console.warn = warn;
         }
     });
+
+    await t.test("降级后查询照样等应答，芯片恢复了就切回等应答发送", async function () {
+        const warn = console.warn;
+        const info = console.info;
+        console.warn = function () {
+        };
+        console.info = function () {
+        };
+        try {
+            const {chip, ch} = newChip({silent: true});
+            await ch.write(ch.toUnit8Array([0x57, 0xAB, 0x00, 0x02, 0x08, 0, 0, 0, 0, 0, 0, 0, 0]));
+            await ch.write(ch.toUnit8Array([0x57, 0xAB, 0x00, 0x02, 0x08, 0, 0, 0, 0, 0, 0, 0, 0]));
+            assert.strictEqual(ch.isAckEnabled(), false, "前提：已经降级");
+
+            chip.state.silent = false;
+            const result = await ch.getInfo();
+            assert.ok(result, "降级后 GET_INFO 也要拿到结果，否则状态栏会一直误报无应答");
+            assert.strictEqual(ch.isAckEnabled(), true, "芯片能应答了就该恢复");
+        } finally {
+            console.warn = warn;
+            console.info = info;
+        }
+    });
+
+    await t.test("降级后芯片仍然不应答时，查询如实返回 null", async function () {
+        const warn = console.warn;
+        console.warn = function () {
+        };
+        try {
+            const {ch} = newChip({silent: true});
+            await ch.write(ch.toUnit8Array([0x57, 0xAB, 0x00, 0x02, 0x08, 0, 0, 0, 0, 0, 0, 0, 0]));
+            await ch.write(ch.toUnit8Array([0x57, 0xAB, 0x00, 0x02, 0x08, 0, 0, 0, 0, 0, 0, 0, 0]));
+            const started = Date.now();
+            assert.strictEqual(await ch.getInfo(), null);
+            assert.strictEqual(ch.isAckEnabled(), false);
+            assert.ok(Date.now() - started < 1200, "已经降级了，只等一轮就该放弃，不必把重试都耗完");
+        } finally {
+            console.warn = warn;
+        }
+    });
 });
 
 test("不等应答时要留出包间隔", async function (t) {
