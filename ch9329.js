@@ -808,13 +808,6 @@ function Ch9329(writer, mouseAbsolute, reader) {
         return {typed: typed, skipped: skipped, capsToggled: capsToggled, cancelled: cancelled};
     }
 
-    this.sendCtrlAltDelete = async function () {
-        // 修饰位：bit0 LCtrl | bit2 LAlt = 0x05，普通键 Delete = 0x4C
-        let data = [0x57, 0xAB, this.ADDR, 0x02, 0x08, 0x05, 0x00, 0x4C, 0x00, 0x00, 0x00, 0x00, 0x00];
-        await this.write(this.toUnit8Array(data));
-        this.releaseAllKeys();
-    }
-
     // codes 用 KeyboardEvent.code 命名，修饰键进修饰位，其余进 6 个普通键位。
     // 有不认识的键就返回 null，宁可不发也别发出一个缺键的组合
     this.comboReport = function (codes) {

@@ -279,6 +279,36 @@
         padding: 6px 12px 12px;
     }
 
+    .shortcut-actions {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        gap: 6px;
+        margin-top: 6px;
+    }
+
+    .shortcut-actions button {
+        padding: 7px 9px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        background-color: rgba(255, 255, 255, 0.08);
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .shortcut-actions button[hidden] {
+        display: none;
+    }
+
+    .shortcut-actions button:hover {
+        background-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .shortcut-actions button:active {
+        background-color: rgba(255, 255, 255, 0.24);
+    }
+
     .shortcut-group-title {
         display: flex;
         align-items: center;
@@ -737,18 +767,6 @@
 
     <div class="toolbar-divider"></div>
 
-    <button onclick="ctrlAltDel()" aria-label="发送 Ctrl+Alt+Delete" data-i18n-aria-label="toolbar.ctrlAltDel">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-             stroke-linejoin="round" aria-hidden="true">
-            <rect x="2" y="4" width="20" height="16" rx="2"/>
-            <path d="M6 9h.01"/>
-            <path d="M10 9h.01"/>
-            <path d="M14 9h.01"/>
-            <path d="M18 9h.01"/>
-            <path d="M7 15h10"/>
-        </svg>
-        <span class="tooltip">Ctrl+Alt+Delete</span>
-    </button>
     <button onclick="toggleShortcutPanel()" id="shortcutButton" aria-label="快捷键" data-i18n-aria-label="toolbar.shortcuts" aria-expanded="false"
             aria-controls="shortcutPanel">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -770,30 +788,6 @@
             <path d="M9 16h4"/>
         </svg>
         <span class="tooltip" data-i18n="toolbar.paste">粘贴文本</span>
-    </button>
-    <button onclick="toggleSoftKeyboard()" id="softKeyboardButton" aria-label="屏幕键盘" data-i18n-aria-label="toolbar.softKeyboard" aria-pressed="false" hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-             stroke-linejoin="round" aria-hidden="true">
-            <rect x="2" y="5" width="20" height="11" rx="2"/>
-            <path d="M6 9h.01"/>
-            <path d="M10 9h.01"/>
-            <path d="M14 9h.01"/>
-            <path d="M18 9h.01"/>
-            <path d="M8 12.5h8"/>
-            <path d="M10 19.5l2 1.5 2-1.5"/>
-        </svg>
-        <span class="tooltip" data-i18n="toolbar.softKeyboard">屏幕键盘</span>
-    </button>
-    <button onclick="releaseAllInput()" aria-label="强制松开所有键" data-i18n-aria-label="toolbar.releaseAll">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-             stroke-linejoin="round" aria-hidden="true">
-            <rect x="2" y="4" width="20" height="16" rx="2"/>
-            <path d="M6 9h.01"/>
-            <path d="M10 9h.01"/>
-            <path d="M7 15h10"/>
-            <path d="M3 3l18 18"/>
-        </svg>
-        <span class="tooltip" data-i18n="toolbar.releaseAll">强制松开所有键</span>
     </button>
 
     <div class="toolbar-divider"></div>
@@ -843,6 +837,10 @@
         <button type="button" class="shortcut-close" onclick="toggleShortcutPanel(false)" aria-label="关闭" data-i18n-aria-label="common.close">×</button>
     </div>
     <div class="shortcut-body">
+        <div class="shortcut-actions">
+            <button type="button" onclick="releaseAllInput()" data-i18n="toolbar.releaseAll">强制松开所有键</button>
+            <button type="button" onclick="toggleSoftKeyboard()" id="softKeyboardButton" aria-pressed="false" data-i18n="toolbar.softKeyboard" hidden>屏幕键盘</button>
+        </div>
         <div id="shortcutGroups"></div>
         <div class="shortcut-group-title"><span data-i18n="shortcut.addCustom">添加自定义</span></div>
         <div class="shortcut-custom">

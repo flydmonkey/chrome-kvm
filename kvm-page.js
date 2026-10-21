@@ -1422,13 +1422,6 @@ function paste() {
     pasteText();
 }
 
-function ctrlAltDel() {
-    if (!ch) {
-        return;
-    }
-    ch.sendCtrlAltDelete();
-}
-
 function releaseAllInput() {
     if (!ch) {
         return;
@@ -2204,6 +2197,8 @@ function toggleSoftKeyboard() {
     if (document.activeElement === input) {
         input.blur();
     } else {
+        // 手机上面板会挡住大半个画面，弹出键盘时让出来
+        toggleShortcutPanel(false);
         input.focus();
     }
     // 窗口本身没有焦点时 focus/blur 事件不会派发，按钮状态按实际焦点定

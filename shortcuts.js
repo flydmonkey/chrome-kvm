@@ -162,6 +162,7 @@ var Shortcuts = (function () {
         {
             title: "Windows",
             items: [
+                {label: t("shortcut.win.secure"), combo: "Ctrl+Alt+Del"},
                 {label: t("shortcut.win.start"), combo: "Win"},
                 {label: t("shortcut.win.lock"), combo: "Win+L"},
                 {label: t("shortcut.win.desktop"), combo: "Win+D"},

@@ -94,11 +94,8 @@ Along the left edge of the control page there is a collapsible toolbar. When col
 | Viewfinder with a T      | Select an area of the picture to recognize text (OCR); see below                      |
 | Magnifier                | Display mode: fit to window, stretch, 1:1, zoom; see below                            |
 | Monitor and phone        | Switch target PC profile. Only appears when you have two or more profiles; see below  |
-| Keyboard                 | Send Ctrl+Alt+Delete to the target PC                                                 |
-| Four squares             | Open the shortcut panel; see below                                                    |
+| Four squares             | Open the shortcut panel: Ctrl+Alt+Delete and other common combos, force-release all keys, and the on-screen keyboard; see below |
 | Clipboard                | Type the text on your local clipboard into the target PC, one character at a time     |
-| Keyboard with an arrow   | On-screen keyboard. Only appears on touch devices; see below                          |
-| Crossed-out keyboard     | Force-release all keys, to rescue you when a key is stuck on the target PC            |
 | Power symbol             | ATX power: press the power button, force shutdown, press reset. Only appears when a relay is selected on the settings page; see below |
 | Gear                     | Open the settings page                                                                |
 | Two-way arrow            | Reload the page                                                                       |
@@ -122,9 +119,13 @@ Paste works by simulating keystrokes, so it only supports characters that can be
 
 ### Shortcut panel
 
-Outside fullscreen, key combinations like Win+L and Alt+Tab are intercepted by your local computer first, and some keys (SysRq, Pause) simply don't exist on your keyboard. The four-squares button on the toolbar opens the shortcut panel; click a shortcut to send that combination to the target PC, and all keys are released automatically afterwards. The panel comes with several preset groups:
+Outside fullscreen, key combinations like Win+L and Alt+Tab are intercepted by your local computer first, and some keys (SysRq, Pause) simply don't exist on your keyboard. The four-squares button on the toolbar opens the shortcut panel; click a shortcut to send that combination to the target PC, and all keys are released automatically afterwards.
 
-- **Windows**: Start menu, lock screen, show desktop, Run, Task Manager, Alt+Tab, Alt+F4, etc.
+The top of the panel has two action buttons: "Force release all keys" rescues you when a key is stuck on the target PC, and "On-screen keyboard" only appears on touch devices; see below.
+
+The panel comes with several preset groups:
+
+- **Windows**: Ctrl+Alt+Delete (security options), Start menu, lock screen, show desktop, Run, Task Manager, Alt+Tab, Alt+F4, etc.
 - **macOS**: Cmd+Space, Cmd+Tab, Force Quit, lock screen, etc. (Cmd is the Win key)
 - **Linux**: Ctrl+Alt+T to open a terminal, Ctrl+Alt+F1–F7 to switch TTYs
 - **Boot / BIOS**: Del, F2, F12, F11, F8, Esc
@@ -263,7 +264,7 @@ When you open the control page on a tablet or touchscreen laptop, your fingers w
 | Two-finger tap           | Right-click                                  | Right-click                                        |
 | Two-finger vertical slide | Scroll wheel (natural scrolling direction)  | Scroll wheel (natural scrolling direction)         |
 
-On touch devices, the toolbar gets an extra on-screen keyboard button. Tap it to bring up the system soft keyboard; what you type is sent to the target PC character by character, and Backspace, Enter and the arrow keys work too. As with paste, only characters that can be typed directly on a US keyboard are supported; send combinations like Win+L with the shortcut panel.
+On touch devices, the top of the shortcut panel gets an extra "On-screen keyboard" button. Tap it to close the panel and bring up the system soft keyboard; what you type is sent to the target PC character by character, and Backspace, Enter and the arrow keys work too. As with paste, only characters that can be typed directly on a US keyboard are supported; send combinations like Win+L with the shortcut panel.
 
 ### System shortcuts
 
