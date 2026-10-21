@@ -496,6 +496,93 @@
         width: 240px;
     }
 
+    /* 框选识别区域时盖住整个页面：挡住视频上的鼠标监听，框选动作不会发给被控端 */
+    .ocr-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1200;
+        cursor: crosshair;
+        background-color: rgba(0, 0, 0, 0.18);
+        touch-action: none;
+        user-select: none;
+    }
+
+    .ocr-overlay[hidden] {
+        display: none;
+    }
+
+    .ocr-box {
+        position: fixed;
+        border: 2px solid #60a5fa;
+        background-color: rgba(96, 165, 250, 0.15);
+        pointer-events: none;
+    }
+
+    .ocr-overlay-hint {
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 6px 14px;
+        border-radius: 999px;
+        background-color: rgba(24, 24, 27, 0.9);
+        color: #e4e4e7;
+        font-size: 13px;
+        pointer-events: none;
+    }
+
+    .ocr-langs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 14px;
+        margin: 10px 2px 8px;
+    }
+
+    .ocr-text {
+        width: 100%;
+        min-height: 160px;
+        box-sizing: border-box;
+        resize: vertical;
+        padding: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 6px;
+        background-color: rgba(0, 0, 0, 0.3);
+        color: #f4f4f5;
+        font: 13px/1.5 ui-monospace, "Cascadia Mono", Consolas, "Microsoft YaHei", monospace;
+        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+
+    .ocr-text:focus-visible {
+        outline: 2px solid #60a5fa;
+        outline-offset: -2px;
+    }
+
+    .ocr-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 8px;
+    }
+
+    .ocr-actions button {
+        flex: 1;
+        padding: 6px 8px;
+        border: none;
+        border-radius: 6px;
+        background-color: rgba(96, 165, 250, 0.2);
+        color: #93c5fd;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .ocr-actions button:hover {
+        background-color: rgba(96, 165, 250, 0.3);
+    }
+
+    .ocr-actions button:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+
     .view-options {
         display: flex;
         flex-direction: column;
@@ -652,6 +739,18 @@
         </svg>
         <span class="tooltip">截图（保存 PNG 并复制）</span>
     </button>
+    <button onclick="startOcrSelection()" id="ocrButton" aria-label="识别文字">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
+            <path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+            <path d="M21 17v2a2 2 0 0 1-2 2h-2"/>
+            <path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+            <path d="M8 8h8"/>
+            <path d="M12 8v8"/>
+        </svg>
+        <span class="tooltip">识别文字（框选画面）</span>
+    </button>
     <button onclick="toggleViewPanel()" id="viewButton" aria-label="画面显示" aria-expanded="false"
             aria-controls="viewPanel">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -786,6 +885,27 @@
         <p class="shortcut-hint">用 + 连接同时按的键；多步用空格隔开，如「Win+R Enter」。修饰键可写 Ctrl、Shift、Alt、Win，Mac 上写 Cmd、Option。</p>
     </div>
 </div>
+<div class="ocr-overlay" id="ocrOverlay" hidden>
+    <div class="ocr-box" id="ocrBox" hidden></div>
+    <div class="ocr-overlay-hint">拖动框出要识别的文字，Esc 取消</div>
+</div>
+<div class="tool-panel" id="ocrPanel" role="dialog" aria-label="识别文字" hidden>
+    <div class="shortcut-header">
+        <span>识别文字</span>
+        <button type="button" class="shortcut-close" onclick="toggleOcrPanel(false)" aria-label="关闭">×</button>
+    </div>
+    <div class="shortcut-body">
+        <div class="ocr-langs" id="ocrLangs" role="group" aria-label="识别语言"></div>
+        <textarea class="ocr-text" id="ocrText" aria-label="识别结果" spellcheck="false"
+                  placeholder="识别结果会显示在这里，可以先改再复制"></textarea>
+        <div class="ocr-actions">
+            <button type="button" id="ocrSelectAgain" onclick="startOcrSelection()">重新框选</button>
+            <button type="button" id="ocrWhole" onclick="recognizeWholeFrame()">整个画面</button>
+            <button type="button" id="ocrCopy" onclick="copyOcrText()">复制</button>
+        </div>
+        <p class="shortcut-hint">在本机识别，画面不会上传。改了语言会按新语言重新识别上一块区域。</p>
+    </div>
+</div>
 <input class="soft-keyboard" id="softKeyboard" type="text" aria-label="屏幕键盘输入" autocomplete="off"
        autocorrect="off" autocapitalize="off" spellcheck="false">
 <div class="tool-panel view-panel" id="viewPanel" role="dialog" aria-label="画面显示" hidden>
@@ -810,6 +930,7 @@
 <script src="shortcuts.js"></script>
 <script src="view-modes.js"></script>
 <script src="touch-input.js"></script>
+<script src="ocr.js"></script>
 <script src="ch9329.js"></script>
 <script src="kvm-page.js"></script>
 </body>
