@@ -1,0 +1,16 @@
+本目录是 OCR 文字识别用到的第三方文件，原样取自 npm，未做修改。放进仓库是为了在不能上外网的环境里也能识别。
+
+tesseract.min.js、worker.min.js
+    tesseract.js 7.0.0，Apache-2.0，见 LICENSE-tesseract.js.md
+    https://github.com/naptha/tesseract.js
+
+core/tesseract-core-simd-lstm.wasm.js、core/tesseract-core-lstm.wasm.js
+    tesseract.js-core 7.0.0（Tesseract OCR 引擎的 WebAssembly 版），Apache-2.0，见 core/LICENSE
+    https://github.com/naptha/tesseract.js-core
+    只取了 LSTM 引擎的 SIMD 版与通用版，由页面自己检测 SIMD 支持后选择
+
+lang/eng.traineddata.gz、lang/chi_sim.traineddata.gz、lang/chi_tra.traineddata.gz
+    @tesseract.js-data/eng、chi_sim、chi_tra 1.0.0 中的 4.0.0_best_int 版本，npm 包为 MIT 许可
+    模型来自 Tesseract 官方 tessdata（Apache-2.0）：https://github.com/tesseract-ocr/tessdata
+
+升级时三处版本要一起换：tesseract.js 与 tesseract.js-core 的主版本号必须一致。
