@@ -267,6 +267,31 @@ test("指针锁定文案", async (t) => {
     });
 });
 
+test("键盘指示灯", async (t) => {
+    await t.test("按 Num、Caps、Scroll 的顺序给出开关状态和提示", () => {
+        const lights = StatusText.lockLights({usbConnected: true, numLock: true, capsLock: false, scrollLock: true});
+        assert.deepStrictEqual(lights.map((l) => [l.key, l.glyph, l.on]), [
+            ["NumLock", "1", true],
+            ["CapsLock", "A", false],
+            ["ScrollLock", "⇩", true]
+        ]);
+        assert.strictEqual(lights[0].label, "Num Lock 开，点击切换");
+        assert.strictEqual(lights[1].label, "Caps Lock 关，点击切换");
+    });
+
+    await t.test("芯片无应答或 USB 没枚举时不显示", () => {
+        assert.strictEqual(StatusText.lockLights(null), null);
+        assert.strictEqual(StatusText.lockLights({usbConnected: false, capsLock: true}), null);
+    });
+
+    await t.test("三个灯的键名都能在协议层发出去", () => {
+        const Ch9329 = require("../ch9329.js");
+        for (const light of StatusText.LOCK_LIGHTS) {
+            assert.ok(Ch9329.KEYBOARD_MAP[light.key] != null, light.key);
+        }
+    });
+});
+
 test("全屏与键盘锁定文案", async (t) => {
     await t.test("没全屏时提示进全屏能捕获系统键", () => {
         let status = StatusText.describeFullscreen({fullscreen: false, lockSupported: true});

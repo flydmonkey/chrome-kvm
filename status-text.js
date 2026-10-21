@@ -108,6 +108,29 @@ var StatusText = (function () {
         return {level: level, lines: lines};
     }
 
+    // 工具栏上常驻的三个键盘指示灯。灯是被控端系统发给「键盘」的，USB 没枚举时
+    // 芯片拿不到，显示出来也是假的，干脆不显示
+    var LOCK_LIGHTS = [
+        {key: "NumLock", field: "numLock", glyph: "1", name: "Num Lock"},
+        {key: "CapsLock", field: "capsLock", glyph: "A", name: "Caps Lock"},
+        {key: "ScrollLock", field: "scrollLock", glyph: "⇩", name: "Scroll Lock"}
+    ];
+
+    function lockLights(info) {
+        if (!info || !info.usbConnected) {
+            return null;
+        }
+        return LOCK_LIGHTS.map(function (light) {
+            var on = !!info[light.field];
+            return {
+                key: light.key,
+                glyph: light.glyph,
+                on: on,
+                label: light.name + (on ? " 开" : " 关") + "，点击切换"
+            };
+        });
+    }
+
     // state: {fullscreen, keyboardLocked, lockSupported}
     function describeFullscreen(state) {
         if (!state.fullscreen) {
@@ -157,6 +180,8 @@ var StatusText = (function () {
         describeVideo: describeVideo,
         describeSerial: describeSerial,
         describeFullscreen: describeFullscreen,
+        LOCK_LIGHTS: LOCK_LIGHTS,
+        lockLights: lockLights,
         recordFileName: recordFileName,
         screenshotFileName: screenshotFileName
     };

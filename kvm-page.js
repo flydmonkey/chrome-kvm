@@ -404,7 +404,92 @@ function renderStatus(info) {
         pointerLockRejected: pointerLockRejected
     });
     setStatus(status.level, status.lines);
+    renderLockLights(info);
 }
+
+// 键盘指示灯。芯片只在被问到时才报灯的状态，所以定时问一下：被控端开机自检、
+// 登录界面会自己改 Num Lock，光凭本机按过什么键推算不准
+const LOCK_POLL_MS = 2000;
+let lockPollBusy = false;
+
+function renderLockLights(info) {
+    let group = document.getElementById("lockLights");
+    let lights = StatusText.lockLights(info);
+    group.hidden = !lights;
+    if (!lights) {
+        return;
+    }
+    // 只建一次，之后只改状态：每次重建的话鼠标停在灯上时提示会一闪一闪
+    if (!group.children.length) {
+        StatusText.LOCK_LIGHTS.forEach(function (light) {
+            let button = document.createElement("button");
+            button.type = "button";
+            button.className = "lock-light";
+            button.dataset.key = light.key;
+            button.textContent = light.glyph;
+            let tooltip = document.createElement("span");
+            tooltip.className = "tooltip";
+            button.appendChild(tooltip);
+            button.addEventListener("click", function () {
+                toggleLock(light.key);
+            });
+            group.appendChild(button);
+        });
+    }
+    lights.forEach(function (light, index) {
+        let button = group.children[index];
+        button.setAttribute("aria-pressed", String(light.on));
+        button.setAttribute("aria-label", light.label);
+        button.querySelector(".tooltip").textContent = light.label;
+    });
+}
+
+async function pollLockLights() {
+    // 芯片降级成只发不等时问了也没有回音，别让每次轮询都白等一个超时
+    if (lockPollBusy || !ch || serialLost || document.hidden || !ch.isAckEnabled()) {
+        return;
+    }
+    lockPollBusy = true;
+    let chip = ch;
+    try {
+        let info = await chip.getInfo();
+        // 等回应期间串口可能被换掉了，旧芯片的状态不能画到新连接上
+        if (chip === ch && !serialLost) {
+            renderStatus(info);
+        }
+    } catch (e) {
+        console.warn("查询键盘指示灯失败", e);
+    } finally {
+        lockPollBusy = false;
+    }
+}
+
+// 被控端收到按键后才改灯，稍等一下再问
+function pollLockLightsSoon() {
+    setTimeout(pollLockLights, 150);
+}
+
+async function toggleLock(key) {
+    if (!ch || pasting || keyRepeating) {
+        return;
+    }
+    await ch.tapCombo([key]);
+    pollLockLightsSoon();
+}
+
+setInterval(pollLockLights, LOCK_POLL_MS);
+document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) {
+        pollLockLights();
+    }
+});
+document.addEventListener("keyup", function (event) {
+    if (StatusText.LOCK_LIGHTS.some(function (light) {
+        return light.key === event.code;
+    }) && !isEditableTarget(event.target)) {
+        pollLockLightsSoon();
+    }
+});
 
 async function refreshStatus() {
     if (!ch) {

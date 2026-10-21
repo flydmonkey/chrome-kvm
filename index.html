@@ -89,6 +89,35 @@
     }
 
     /* 功能分组之间的细分隔线 */
+    /* 键盘指示灯：Num / Caps / Scroll 三颗小灯，亮的那颗是绿底 */
+    .lock-lights {
+        display: flex;
+        gap: 2px;
+        padding: 1px 0 3px;
+    }
+
+    .lock-lights[hidden] {
+        display: none;
+    }
+
+    .floating-toolbar .lock-light {
+        width: 12px;
+        height: 18px;
+        border-radius: 4px;
+        background-color: rgba(255, 255, 255, 0.06);
+        color: #71717a;
+        font: 600 10px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    .floating-toolbar .lock-light:hover {
+        background-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .floating-toolbar .lock-light[aria-pressed="true"] {
+        background-color: #3ddc84;
+        color: #0b0b0d;
+    }
+
     .toolbar-divider {
         width: 22px;
         height: 1px;
@@ -699,6 +728,7 @@
         </svg>
         <span class="tooltip" id="inputStatusTooltip">未连接串口</span>
     </button>
+    <div class="lock-lights" id="lockLights" role="group" aria-label="键盘指示灯" hidden></div>
 
     <div class="toolbar-divider"></div>
 
