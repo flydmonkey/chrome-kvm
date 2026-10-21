@@ -22,6 +22,7 @@ const officePc = {
     frameRate: 60,
     mouseClickMode: "absolute",
     relativeSpeed: 1,
+    atx: {deviceId: "{\"usbVendorId\":6790,\"usbProductId\":29987}", label: "LCUS", channel: 1},
     baudRate: 115200,
     workingMode: 2,
     mouseModeVersion: 1
@@ -97,6 +98,15 @@ test("另存为、切换、删除", async (t) => {
         assert.strictEqual(result.settings.baudRate, 921600);
         assert.strictEqual(result.settings.workingMode, 0);
         assert.strictEqual(result.settings.mouseModeVersion, 1);
+    });
+
+    await t.test("继电器跟着配置走，旧配置里没有就清空而不是沿用", () => {
+        let state = Profiles.saveAs(null, "办公室电脑", officePc).state;
+        const legacy = Object.assign({}, server);
+        delete legacy.atx;
+        state = Profiles.saveAs(state, "服务器", legacy).state;
+        assert.strictEqual(Profiles.apply(state, "服务器", officePc).settings.atx, null);
+        assert.strictEqual(Profiles.apply(state, "办公室电脑", legacy).settings.atx.label, "LCUS");
     });
 
     await t.test("切到不存在的配置报错", () => {

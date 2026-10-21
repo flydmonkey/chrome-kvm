@@ -6,7 +6,10 @@ var Profiles = (function () {
     var STORAGE_KEY = "chrome-kvm-profiles";
     var MAX_PROFILES = 20;
     var MAX_NAME_LENGTH = 20;
-    var FIELDS = ["video", "audio", "usb", "resolution", "frameRate", "mouseClickMode", "relativeSpeed"];
+    var FIELDS = ["video", "audio", "usb", "resolution", "frameRate", "mouseClickMode", "relativeSpeed", "atx"];
+    // 配置里没有就清空、不沿用当前值的字段：沿用上一台的继电器，按下去断电的
+    // 就是另一台机器
+    var CLEARED_WHEN_MISSING = ["atx"];
 
     function empty() {
         return {active: null, profiles: []};
@@ -117,7 +120,13 @@ var Profiles = (function () {
         if (at === -1) {
             return {error: "找不到配置「" + name + "」"};
         }
-        var merged = Object.assign({}, current || {}, snapshot(next.profiles[at].settings));
+        var saved = snapshot(next.profiles[at].settings);
+        var merged = Object.assign({}, current || {}, saved);
+        CLEARED_WHEN_MISSING.forEach(function (field) {
+            if (saved[field] === undefined) {
+                merged[field] = null;
+            }
+        });
         next.active = name;
         return {state: next, settings: merged};
     }
