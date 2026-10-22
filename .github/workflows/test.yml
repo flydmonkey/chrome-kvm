@@ -1,16 +1,18 @@
 name: test
 
+# 推到 main 时 pages.yml 会先跑测试再发布，这里就不重复跑了
 on:
   push:
+    branches-ignore: [main]
   pull_request:
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # 项目没有依赖，只用 Node 自带的 node:test
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - run: npm test
