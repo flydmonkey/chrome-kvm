@@ -4,7 +4,7 @@ English | [简体中文](README.md)
 
 Chrome-KVM is a BIOS-level remote control project built on the Chrome browser. Just open a web page to manage a server or workstation — no software to install and no settings to change on the target PC. Control is completely non-intrusive, so it works in a wide range of situations.
 
-The interface is available in Simplified Chinese, Traditional Chinese, English, Japanese and Korean. On first use it follows your browser language (falling back to English), and you can change it at any time at the top of the settings page.
+The interface is available in Simplified Chinese, Traditional Chinese, English, Japanese and Korean. On first use it follows your browser language (falling back to English), and you can change it at any time under "General" on the settings page. The interface has light and dark themes; it follows your system by default, and you can pick one manually in the same place. The video area always stays black.
 
 ![Intro](./docs/intro.png)
 

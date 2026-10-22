@@ -7,13 +7,10 @@
     <link rel="icon" href="app.svg" type="image/svg+xml">
     <link rel="alternate icon" href="app-192.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="notices.css">
     <style>
-        /* 让原生下拉框的弹出列表也跟着用深色 */
-        :root {
-            color-scheme: dark;
-        }
-
         body {
             margin: 0;
             /* 用 min-height 而不是 height，内容超出一屏时还能滚 */
@@ -24,8 +21,8 @@
             justify-content: center;
             align-items: flex-start;
             font: 14px/1.6 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-            color: #e4e4e7;
-            background-color: #131316;
+            color: var(--text);
+            background-color: var(--page-bg);
         }
 
         /* 雅黑的日文、繁体字形是简体写法，换成各自的系统字体 */
@@ -51,12 +48,12 @@
             max-width: 440px;
             box-sizing: border-box;
             padding: 24px;
-            background-color: rgba(39, 39, 42, 0.7);
+            background-color: var(--card);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--tint-08);
             border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+            box-shadow: 0 8px 24px var(--shadow-color);
         }
 
         h2 {
@@ -68,14 +65,14 @@
         .page-hint {
             margin: 0;
             font-size: 13px;
-            color: #a1a1aa;
+            color: var(--text-muted);
         }
 
         /* 按视频 / 键鼠分组，和工具栏上那两个状态图标对应 */
         .section {
             margin-top: 20px;
             padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1px solid var(--tint-10);
         }
 
         .section-title {
@@ -85,13 +82,13 @@
             margin-bottom: 14px;
             font-size: 13px;
             font-weight: 600;
-            color: #d4d4d8;
+            color: var(--text);
         }
 
         .section-title svg {
             width: 16px;
             height: 16px;
-            color: #a1a1aa;
+            color: var(--text-muted);
             flex-shrink: 0;
         }
 
@@ -104,7 +101,7 @@
             gap: 4px;
             margin: 16px 0 20px;
             padding: 4px;
-            background-color: rgba(0, 0, 0, 0.25);
+            background-color: var(--inset-bg);
             border-radius: 10px;
         }
 
@@ -118,7 +115,7 @@
             padding: 7px 6px;
             font: inherit;
             font-size: 13px;
-            color: #a1a1aa;
+            color: var(--text-muted);
             background: none;
             border: none;
             border-radius: 7px;
@@ -138,16 +135,17 @@
         }
 
         .tabs [role="tab"]:hover {
-            color: #e4e4e7;
+            color: var(--text);
         }
 
         .tabs [role="tab"][aria-selected="true"] {
-            color: #f4f4f5;
-            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-strong);
+            background-color: var(--tab-selected);
+            box-shadow: 0 1px 2px var(--shadow-color);
         }
 
         .tabs [role="tab"]:focus-visible {
-            outline: 2px solid #60a5fa;
+            outline: 2px solid var(--accent);
             outline-offset: -2px;
         }
 
@@ -163,11 +161,11 @@
             display: block;
             margin-bottom: 6px;
             font-size: 13px;
-            color: #a1a1aa;
+            color: var(--text-muted);
         }
 
         a {
-            color: #60a5fa;
+            color: var(--accent);
             text-decoration: none;
         }
 
@@ -182,11 +180,11 @@
             width: 100%;
             box-sizing: border-box;
             font: inherit;
-            color: #e4e4e7;
+            color: var(--text);
             /* 必须是不透明色：半透明底会被 Chrome 合成到白底上，
                弹出列表就变成近白，而选项文字还是浅色，等于看不见 */
-            background-color: #2e2e31;
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            background-color: var(--field-bg);
+            border: 1px solid var(--tint-12);
             border-radius: 8px;
             transition: border-color 0.15s, background-color 0.15s;
         }
@@ -208,46 +206,44 @@
         input[type="text"] {
             /* 没有箭头要让位，左右一样留白 */
             padding: 9px 10px;
-            /* 让 Chrome 用深色渲染自带的上下微调按钮，否则右侧会糊一块浅色 */
-            color-scheme: dark;
         }
 
         /* 弹出列表里每一行的配色靠 option 自己定，select 上的设置管不到 */
         select option {
-            color: #e4e4e7;
-            background-color: #26262a;
+            color: var(--text);
+            background-color: var(--option-bg);
         }
 
         select:hover,
         input[type="number"]:hover,
         input[type="text"]:hover {
-            border-color: rgba(255, 255, 255, 0.22);
+            border-color: var(--tint-22);
         }
 
         select:focus-visible,
         input[type="number"]:focus-visible,
         input[type="text"]:focus-visible {
-            outline: 2px solid #60a5fa;
+            outline: 2px solid var(--accent);
             outline-offset: -1px;
         }
 
         .confirm-button {
             font: inherit;
             padding: 9px 14px;
-            color: #e4e4e7;
-            background-color: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: var(--text);
+            background-color: var(--tint-08);
+            border: 1px solid var(--tint-12);
             border-radius: 8px;
             cursor: pointer;
             transition: background-color 0.15s, border-color 0.15s;
         }
 
         .confirm-button:hover {
-            background-color: rgba(255, 255, 255, 0.15);
+            background-color: var(--tint-15);
         }
 
         .confirm-button:focus-visible {
-            outline: 2px solid #60a5fa;
+            outline: 2px solid var(--accent);
             outline-offset: 1px;
         }
 
@@ -265,7 +261,7 @@
 
         /* 危险操作点第一下之后的确认状态 */
         .confirm-button[data-armed="true"] {
-            color: #fca5a5;
+            color: var(--error-text);
             background-color: rgba(248, 113, 113, 0.14);
             border-color: rgba(248, 113, 113, 0.5);
         }
@@ -311,20 +307,20 @@
         .hint {
             margin: 6px 0 0;
             font-size: 12px;
-            color: #8b8b93;
+            color: var(--text-faint);
         }
 
         code {
             padding: 1px 5px;
             font-size: 12px;
-            background-color: rgba(255, 255, 255, 0.08);
+            background-color: var(--tint-08);
             border-radius: 4px;
         }
 
         .saved-line {
             margin: 0 0 6px;
             font-size: 12px;
-            color: #a1a1aa;
+            color: var(--text-muted);
             /* 设备名可能很长，别把面板撑破 */
             overflow-wrap: anywhere;
         }
@@ -334,7 +330,7 @@
         }
 
         .saved-line span {
-            color: #d4d4d8;
+            color: var(--text);
         }
     </style>
 </head>
@@ -395,6 +391,14 @@
         <div class="field">
             <label for="languageSelect" data-i18n="settings.language">界面语言（Language）</label>
             <select id="languageSelect" name="languageSelect" onchange="changeLanguage()"></select>
+        </div>
+        <div class="field">
+            <label for="themeSelect" data-i18n="settings.theme">主题</label>
+            <select id="themeSelect" name="themeSelect" onchange="changeTheme()">
+                <option value="auto" data-i18n="settings.theme.auto">跟随系统</option>
+                <option value="light" data-i18n="settings.theme.light">浅色</option>
+                <option value="dark" data-i18n="settings.theme.dark">深色</option>
+            </select>
         </div>
 
         <div class="section">

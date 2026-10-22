@@ -650,6 +650,11 @@ function changeLanguage() {
     }
 }
 
+// 和语言不同，主题全靠 CSS 变量，切换不用刷新，表单里没保存的改动也不会丢
+function changeTheme() {
+    Theme.set(document.querySelector("#themeSelect").value);
+}
+
 const SETTINGS_TABS = ["general", "video", "input", "power"];
 
 function tabFromHash() {
@@ -705,6 +710,7 @@ function showTab(name, focus) {
 })();
 
 renderLanguages();
+document.querySelector("#themeSelect").value = Theme.current();
 renderMedia();
 renderUsb();
 renderAtx();

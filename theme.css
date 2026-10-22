@@ -1,0 +1,77 @@
+/* 两个页面共用的配色。data-theme 由 theme.js 在页面绘制前写到 <html> 上。
+   深色下的半透明白叠加，在浅色下换成同等分量的半透明黑叠加，悬停、边框这些层次就能原样保留 */
+:root {
+    color-scheme: dark;
+
+    --page-bg: #131316;
+    --card: rgba(39, 39, 42, 0.7);
+    --glass: rgba(24, 24, 27, 0.72);
+    --glass-strong: rgba(24, 24, 27, 0.92);
+    --shadow-color: rgba(0, 0, 0, 0.45);
+    --input-bg: rgba(0, 0, 0, 0.3);
+    --inset-bg: rgba(0, 0, 0, 0.25);
+    --tab-selected: rgba(255, 255, 255, 0.1);
+    /* 下拉框必须是不透明色：半透明底会被 Chrome 合成到白底上，弹出列表就看不清了 */
+    --field-bg: #2e2e31;
+    --option-bg: #26262a;
+
+    --text: #e4e4e7;
+    --text-strong: #f4f4f5;
+    --text-muted: #a1a1aa;
+    --text-faint: #71717a;
+    --accent: #60a5fa;
+    --accent-text: #93c5fd;
+    --ok: #3ddc84;
+    --warn: #ffc107;
+    --error: #ff5252;
+    --error-text: #ff8a80;
+
+    --tint-04: rgba(255, 255, 255, 0.04);
+    --tint-06: rgba(255, 255, 255, 0.06);
+    --tint-08: rgba(255, 255, 255, 0.08);
+    --tint-10: rgba(255, 255, 255, 0.1);
+    --tint-12: rgba(255, 255, 255, 0.12);
+    --tint-15: rgba(255, 255, 255, 0.15);
+    --tint-16: rgba(255, 255, 255, 0.16);
+    --tint-20: rgba(255, 255, 255, 0.2);
+    --tint-22: rgba(255, 255, 255, 0.22);
+    --tint-24: rgba(255, 255, 255, 0.24);
+}
+
+:root[data-theme="light"] {
+    color-scheme: light;
+
+    --page-bg: #f4f4f5;
+    --card: rgba(255, 255, 255, 0.92);
+    --glass: rgba(250, 250, 250, 0.82);
+    --glass-strong: rgba(255, 255, 255, 0.96);
+    --shadow-color: rgba(0, 0, 0, 0.14);
+    --input-bg: rgba(255, 255, 255, 0.9);
+    --inset-bg: rgba(0, 0, 0, 0.05);
+    --tab-selected: #ffffff;
+    --field-bg: #ffffff;
+    --option-bg: #ffffff;
+
+    --text: #27272a;
+    --text-strong: #18181b;
+    --text-muted: #52525b;
+    --text-faint: #71717a;
+    --accent: #2563eb;
+    --accent-text: #1d4ed8;
+    /* 浅底上原来的亮绿、亮黄几乎看不清，换深一档 */
+    --ok: #16a34a;
+    --warn: #d97706;
+    --error: #dc2626;
+    --error-text: #dc2626;
+
+    --tint-04: rgba(0, 0, 0, 0.03);
+    --tint-06: rgba(0, 0, 0, 0.045);
+    --tint-08: rgba(0, 0, 0, 0.06);
+    --tint-10: rgba(0, 0, 0, 0.075);
+    --tint-12: rgba(0, 0, 0, 0.09);
+    --tint-15: rgba(0, 0, 0, 0.11);
+    --tint-16: rgba(0, 0, 0, 0.12);
+    --tint-20: rgba(0, 0, 0, 0.15);
+    --tint-22: rgba(0, 0, 0, 0.165);
+    --tint-24: rgba(0, 0, 0, 0.18);
+}
