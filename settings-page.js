@@ -134,7 +134,95 @@ function renderMedia() {
             }
         }
 
+        probeResolutions(false);
     })
+}
+
+// 每次检测加一。换了采集卡时上一次检测还没跑完，跑完的结果不能盖到新卡上
+let probeGeneration = 0;
+
+function resolutionOptions() {
+    return Array.from(document.querySelector("#choice4").options);
+}
+
+// 在每个分辨率后面标上这张卡选了会怎样；原生支持的不标
+function renderResolutionSupport(result) {
+    resolutionOptions().forEach(function (option) {
+        if (!option.dataset.label) {
+            option.dataset.label = option.textContent;
+        }
+        let outcome = result ? CaptureModes.outcome(option.value, result.modes) : null;
+        let note = "";
+        if (outcome && outcome.kind === "fallback") {
+            note = I18n.t("settings.resolution.fallback", {size: outcome.size});
+        } else if (outcome && outcome.kind === "scaled") {
+            note = I18n.t("settings.resolution.scaled");
+        }
+        option.textContent = note ? option.dataset.label + " — " + note : option.dataset.label;
+    });
+}
+
+function setProbeHint(text) {
+    let hint = document.querySelector("#resolutionProbe");
+    hint.textContent = text;
+    hint.hidden = !text;
+}
+
+function showProbeResult(result) {
+    renderResolutionSupport(result);
+    if (!result.max) {
+        setProbeHint(I18n.t("settings.resolution.probeNone"));
+        return;
+    }
+    let max = result.max.size.replace("x", "×") + (result.max.frameRate ? ", " + result.max.frameRate + " fps" : "");
+    setProbeHint(I18n.t("settings.resolution.probed", {count: result.modes.length, max: max}));
+}
+
+// 检测要打开采集卡，同一张卡检测过就用存下的结果；force 是用户点了「重新检测」
+async function probeResolutions(force) {
+    let deviceId = document.querySelector("#choice1").value;
+    let button = document.querySelector("#probeResolutionButton");
+    button.hidden = !deviceId;
+    let generation = ++probeGeneration;
+    if (!deviceId) {
+        renderResolutionSupport(null);
+        setProbeHint("");
+        return;
+    }
+    let cached = CaptureModes.load(localStorage, deviceId);
+    if (cached && !force) {
+        showProbeResult(cached);
+        return;
+    }
+    button.disabled = true;
+    renderResolutionSupport(null);
+    setProbeHint(I18n.t("settings.resolution.probing"));
+    let stream = null;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({audio: false, video: {deviceId: {exact: deviceId}}});
+        let result = await CaptureModes.probe(stream.getVideoTracks()[0], resolutionOptions().map(function (option) {
+            return option.value;
+        }));
+        if (generation !== probeGeneration) {
+            return;
+        }
+        CaptureModes.save(localStorage, deviceId, result);
+        showProbeResult(result);
+    } catch (e) {
+        if (generation === probeGeneration) {
+            setProbeHint(I18n.t("settings.resolution.probeFailed", {message: describeMediaError(e)}));
+        }
+    } finally {
+        // 检测完立刻放掉，不然设置页会一直占着采集卡，控制页就打不开了
+        if (stream) {
+            stream.getTracks().forEach(function (track) {
+                track.stop();
+            });
+        }
+        if (generation === probeGeneration) {
+            button.disabled = false;
+        }
+    }
 }
 
 function renderUsb() {
@@ -712,6 +800,9 @@ function showTab(name, focus) {
 renderLanguages();
 document.querySelector("#themeSelect").value = Theme.current();
 renderMedia();
+document.querySelector("#choice1").addEventListener("change", function () {
+    probeResolutions(false);
+});
 renderUsb();
 renderAtx();
 renderUsed();

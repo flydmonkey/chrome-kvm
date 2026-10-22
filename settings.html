@@ -479,6 +479,10 @@
                 <option value="800x600">800x600</option>
             </select>
             <p class="hint" data-i18n="settings.resolution.hint">填被控端系统里实际设置的分辨率</p>
+            <p class="hint" id="resolutionProbe" hidden></p>
+            <button type="button" class="confirm-button block field-action" id="probeResolutionButton" hidden
+                    onclick="probeResolutions(true)" data-i18n="settings.resolution.probe"
+                    data-i18n-title="settings.resolution.probeTip">重新检测采集卡支持的分辨率</button>
         </div>
         <div class="field">
             <label for="frameRate" data-i18n="settings.frameRate">采集帧率</label>
@@ -593,6 +597,7 @@
 <script src="page-logic.js"></script>
 <script src="notices.js"></script>
 <script src="device-filter.js"></script>
+<script src="capture-modes.js"></script>
 <script src="ch9329.js"></script>
 <script src="atx-relay.js"></script>
 <script src="settings-page.js"></script>
