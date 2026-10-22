@@ -10,9 +10,11 @@ var Ocr = (function () {
     var LANGUAGES = [
         {id: "eng", label: t("ocr.lang.eng")},
         {id: "chi_sim", label: t("ocr.lang.chiSim")},
-        {id: "chi_tra", label: t("ocr.lang.chiTra")}
+        {id: "chi_tra", label: t("ocr.lang.chiTra")},
+        {id: "jpn", label: t("ocr.lang.jpn")},
+        {id: "kor", label: t("ocr.lang.kor")}
     ];
-    // 语言越多越慢；繁体默认不开，要用时在面板里勾上
+    // 语言越多越慢；繁体、日文、韩文默认不开，要用时在面板里勾上
     var DEFAULT_LANGS = ["eng", "chi_sim"];
     // 框选时手一抖拖出来的几像素不算数
     var MIN_SELECTION_PX = 8;
@@ -37,16 +39,17 @@ var Ocr = (function () {
 
     // Tesseract 对排在前面的语言更偏心：英文在前，中文里的个别词会被认成英文
     // （「网关」→「PIX」）；中文在前，英文里的数字又会认乱（0x0000007B → 9x9999997B）。
-    // 所以先按英文优先认一遍，结果里有汉字再按中文优先重认，纯英文画面只认一遍
+    // 所以先按英文优先认一遍，结果里有中日韩文字再按它们优先重认，纯英文画面只认一遍。
+    // 日文、韩文和英文混排时也是同样的毛病
     function recognitionPlan(list) {
         var langs = normalizeLangs(list);
-        var chinese = langs.filter(function (id) {
+        var cjk = langs.filter(function (id) {
             return id !== "eng";
         });
-        if (langs.indexOf("eng") === -1 || !chinese.length) {
+        if (langs.indexOf("eng") === -1 || !cjk.length) {
             return {first: langs.join("+"), second: null};
         }
-        return {first: ["eng"].concat(chinese).join("+"), second: chinese.concat("eng").join("+")};
+        return {first: ["eng"].concat(cjk).join("+"), second: cjk.concat("eng").join("+")};
     }
 
     function loadLangs(storage) {
@@ -151,22 +154,26 @@ var Ocr = (function () {
         return invert;
     }
 
-    // 汉字、全角标点之间 Tesseract 会插空格（「系统 无 法 启动」），复制出去没法用，
-    // 去掉；英文单词之间的空格保留
-    var CJK = "\\u3000-\\u303f\\u3400-\\u4dbf\\u4e00-\\u9fff\\uf900-\\ufaff\\uff00-\\uffef";
+    // 汉字、假名、全角标点之间 Tesseract 会插空格（「系统 无 法 启动」「見つかり ませ ん」），
+    // 复制出去没法用，去掉；英文单词之间的空格保留。韩文词之间本来就用空格隔开，不在此列
     var HAN = "\\u3400-\\u4dbf\\u4e00-\\u9fff\\uf900-\\ufaff";
+    var KANA = "\\u3040-\\u30ff\\u31f0-\\u31ff\\uff66-\\uff9f";
+    var HANGUL = "\\u1100-\\u11ff\\u3130-\\u318f\\uac00-\\ud7af";
+    var CJK = "\\u3000-\\u303f" + HAN + KANA + "\\uff00-\\uffef";
     var CJK_GAP = new RegExp("([" + CJK + "])[ \\t]+(?=[" + CJK + "])", "g");
-    // 汉字后面的半角标点前不该有空格（「配置 : IP」→「配置: IP」）
-    var GAP_BEFORE_PUNCT = new RegExp("([" + CJK + "])[ \\t]+(?=[,.:;!?])", "g");
-    // 夹在两个汉字中间的半角标点其实是全角的（「已儲存 , 請」→「已儲存，請」）
-    var PUNCT_BETWEEN_HAN = new RegExp("([" + HAN + "])[ \\t]*([,:;!?])[ \\t]*(?=[" + HAN + "])", "g");
+    // 中日韩文字后面的半角标点前不该有空格（「配置 : IP」→「配置: IP」）
+    var GAP_BEFORE_PUNCT = new RegExp("([" + CJK + HANGUL + "])[ \\t]+(?=[,.:;!?])", "g");
+    // 夹在两个汉字或假名中间的半角标点其实是全角的（「已儲存 , 請」→「已儲存，請」）。
+    // 韩文本来就用半角标点
+    var IDEOGRAPH = HAN + KANA;
+    var PUNCT_BETWEEN_IDEOGRAPH = new RegExp("([" + IDEOGRAPH + "])[ \\t]*([,:;!?])[ \\t]*(?=[" + IDEOGRAPH + "])", "g");
     var FULL_WIDTH = {",": "，", ":": "：", ";": "；", "!": "！", "?": "？"};
-    var HAS_HAN = new RegExp("[" + HAN + "]");
+    var HAS_CJK = new RegExp("[" + HAN + KANA + HANGUL + "]");
 
     function cleanText(text) {
         var lines = String(text || "").replace(/\r\n?/g, "\n").split("\n").map(function (line) {
             return line
-                .replace(PUNCT_BETWEEN_HAN, function (all, han, punct) {
+                .replace(PUNCT_BETWEEN_IDEOGRAPH, function (all, han, punct) {
                     return han + FULL_WIDTH[punct];
                 })
                 .replace(CJK_GAP, "$1")
@@ -176,8 +183,8 @@ var Ocr = (function () {
         return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
     }
 
-    function hasHan(text) {
-        return HAS_HAN.test(String(text || ""));
+    function hasCjk(text) {
+        return HAS_CJK.test(String(text || ""));
     }
 
     // 和 wasm-feature-detect 判断 SIMD 用的是同一段最小模块：能通过校验就是支持
@@ -240,7 +247,7 @@ var Ocr = (function () {
         normalizeLangs: normalizeLangs,
         langString: langString,
         recognitionPlan: recognitionPlan,
-        hasHan: hasHan,
+        hasCjk: hasCjk,
         loadLangs: loadLangs,
         saveLangs: saveLangs,
         contentRect: contentRect,

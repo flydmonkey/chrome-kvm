@@ -79,6 +79,8 @@
     "ocr.lang.eng": "英語",
     "ocr.lang.chiSim": "簡体字中国語",
     "ocr.lang.chiTra": "繁体字中国語",
+    "ocr.lang.jpn": "日本語",
+    "ocr.lang.kor": "韓国語",
     "ocr.status.loadingCore": "認識エンジンを読み込み中",
     "ocr.status.initializing": "認識エンジンを初期化中",
     "ocr.status.loadingLang": "言語データを読み込み中",

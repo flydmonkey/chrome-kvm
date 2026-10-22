@@ -79,6 +79,8 @@
     "ocr.lang.eng": "English",
     "ocr.lang.chiSim": "Simplified Chinese",
     "ocr.lang.chiTra": "Traditional Chinese",
+    "ocr.lang.jpn": "Japanese",
+    "ocr.lang.kor": "Korean",
     "ocr.status.loadingCore": "Loading OCR engine",
     "ocr.status.initializing": "Initializing OCR engine",
     "ocr.status.loadingLang": "Loading language data",

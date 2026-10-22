@@ -79,6 +79,8 @@
     "ocr.lang.eng": "영어",
     "ocr.lang.chiSim": "중국어(간체)",
     "ocr.lang.chiTra": "중국어(번체)",
+    "ocr.lang.jpn": "일본어",
+    "ocr.lang.kor": "한국어",
     "ocr.status.loadingCore": "인식 엔진 불러오는 중",
     "ocr.status.initializing": "인식 엔진 초기화 중",
     "ocr.status.loadingLang": "언어 팩 불러오는 중",

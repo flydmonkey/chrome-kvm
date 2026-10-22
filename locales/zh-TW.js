@@ -79,6 +79,8 @@
     "ocr.lang.eng": "英文",
     "ocr.lang.chiSim": "簡體中文",
     "ocr.lang.chiTra": "繁體中文",
+    "ocr.lang.jpn": "日文",
+    "ocr.lang.kor": "韓文",
     "ocr.status.loadingCore": "正在載入辨識引擎",
     "ocr.status.initializing": "正在初始化辨識引擎",
     "ocr.status.loadingLang": "正在載入語言套件",

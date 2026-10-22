@@ -16,7 +16,8 @@ function memoryStorage(initial) {
 
 test("识别语言", async (t) => {
     await t.test("按固定顺序去重，未知的丢掉，空了用默认", () => {
-        assert.deepStrictEqual(Ocr.normalizeLangs(["chi_tra", "eng", "eng", "jpn"]), ["eng", "chi_tra"]);
+        assert.deepStrictEqual(Ocr.normalizeLangs(["chi_tra", "eng", "eng", "fra"]), ["eng", "chi_tra"]);
+        assert.deepStrictEqual(Ocr.normalizeLangs(["kor", "jpn", "chi_sim"]), ["chi_sim", "jpn", "kor"]);
         assert.deepStrictEqual(Ocr.normalizeLangs([]), Ocr.DEFAULT_LANGS);
         assert.deepStrictEqual(Ocr.normalizeLangs("eng"), Ocr.DEFAULT_LANGS);
         assert.strictEqual(Ocr.langString(["chi_sim", "chi_tra", "eng"]), "eng+chi_sim+chi_tra");
@@ -27,6 +28,13 @@ test("识别语言", async (t) => {
             {first: "eng+chi_sim+chi_tra", second: "chi_sim+chi_tra+eng"});
         assert.deepStrictEqual(Ocr.recognitionPlan(["eng"]), {first: "eng", second: null});
         assert.deepStrictEqual(Ocr.recognitionPlan(["chi_sim", "chi_tra"]), {first: "chi_sim+chi_tra", second: null});
+    });
+
+    await t.test("日文、韩文和中文一样：和英文混选时认两遍", () => {
+        assert.deepStrictEqual(Ocr.recognitionPlan(["eng", "jpn"]), {first: "eng+jpn", second: "jpn+eng"});
+        assert.deepStrictEqual(Ocr.recognitionPlan(["kor", "eng", "chi_sim"]),
+            {first: "eng+chi_sim+kor", second: "chi_sim+kor+eng"});
+        assert.deepStrictEqual(Ocr.recognitionPlan(["kor"]), {first: "kor", second: null});
     });
 
     await t.test("默认英文加简体，不含繁体", () => {
@@ -141,11 +149,26 @@ test("整理识别结果", async (t) => {
         assert.strictEqual(Ocr.cleanText("Boot Device : SATA0, 192.168.1.1"), "Boot Device : SATA0, 192.168.1.1");
     });
 
-    await t.test("判断有没有汉字（全角标点不算）", () => {
-        assert.strictEqual(Ocr.hasHan("Error 0x7B"), false);
-        assert.strictEqual(Ocr.hasHan("，：（）"), false);
-        assert.strictEqual(Ocr.hasHan("SATA 硬盘"), true);
-        assert.strictEqual(Ocr.hasHan("繁體"), true);
+    await t.test("日文假名之间的空格去掉，夹在假名中间的半角标点换成全角", () => {
+        assert.strictEqual(Ocr.cleanText("ディスク が 見つかり ませ ん"), "ディスクが見つかりません");
+        assert.strictEqual(Ocr.cleanText("起動 デバイス を 選択 し て くだ さい"), "起動デバイスを選択してください");
+        assert.strictEqual(Ocr.cleanText("保存 しました , 再起動 し ます"), "保存しました，再起動します");
+        assert.strictEqual(Ocr.cleanText("ﾃﾞｨｽｸ ｴﾗｰ"), "ﾃﾞｨｽｸｴﾗｰ");
+    });
+
+    await t.test("韩文词之间本来就有空格，保留；只去掉标点前多余的空格", () => {
+        assert.strictEqual(Ocr.cleanText("부팅 장치를 선택하십시오"), "부팅 장치를 선택하십시오");
+        assert.strictEqual(Ocr.cleanText("디스크 오류 , 다시 시도하십시오"), "디스크 오류, 다시 시도하십시오");
+        assert.strictEqual(Ocr.cleanText("저장 : 완료"), "저장: 완료");
+    });
+
+    await t.test("判断有没有中日韩文字（全角标点不算）", () => {
+        assert.strictEqual(Ocr.hasCjk("Error 0x7B"), false);
+        assert.strictEqual(Ocr.hasCjk("，：（）。、"), false);
+        assert.strictEqual(Ocr.hasCjk("SATA 硬盘"), true);
+        assert.strictEqual(Ocr.hasCjk("繁體"), true);
+        assert.strictEqual(Ocr.hasCjk("Boot メニュー"), true);
+        assert.strictEqual(Ocr.hasCjk("Boot 메뉴"), true);
     });
 
     await t.test("行尾空白去掉，多余空行合并，首尾空白去掉", () => {

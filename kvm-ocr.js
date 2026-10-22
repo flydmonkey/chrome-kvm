@@ -180,7 +180,7 @@ async function recognizeRegion(region) {
     try {
         let plan = Ocr.recognitionPlan(ocrLangs);
         let raw = (await (await ensureOcrWorker(plan.first)).recognize(canvas)).data.text;
-        if (plan.second && Ocr.hasHan(raw)) {
+        if (plan.second && Ocr.hasCjk(raw)) {
             raw = (await (await ensureOcrWorker(plan.second)).recognize(canvas)).data.text;
         }
         let text = Ocr.cleanText(raw);
