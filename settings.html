@@ -123,7 +123,6 @@
             border: none;
             border-radius: 7px;
             cursor: pointer;
-            transition: background-color 0.15s, color 0.15s;
         }
 
         .tabs [role="tab"] span {
@@ -305,9 +304,8 @@
             flex: 1;
         }
 
-        .actions.two-columns {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+        .confirm-button.field-action {
+            margin-top: 8px;
         }
 
         .hint {
@@ -492,6 +490,7 @@
             <label for="choice2"><span data-i18n="settings.serialPort">串口</span> (<span data-i18n="settings.controllerName">CH9329 键鼠控制器</span>)</label>
             <select id="choice2" name="choice2"></select>
             <p class="hint"><span data-i18n="settings.linuxHint">Linux 下需要先给设备加权限：</span><code>chmod 666 /dev/ttyUSB0</code></p>
+            <button type="button" class="confirm-button block field-action" onclick="authUsb()" data-i18n="settings.authUsb">授权控制器</button>
         </div>
         <div class="field">
             <label for="choice5" data-i18n="settings.mouseMode">鼠标按键模式</label>
@@ -523,6 +522,7 @@
                 <span data-i18n="settings.baud.hint1">改波特率需要写进芯片，写入后断电重插 CH9329 才生效。</span>
                 <strong data-i18n="settings.baud.hint2">115200 以上只有 CH9329F 支持</strong><span data-i18n="settings.baud.hint3">，原版 CH9329 写了会连不上；串口那一端也要跟得上（CH340 到 2M，CH343 到 6M）。KVM 的数据包只有十几字节，115200 已经够用，再高收益很小。</span>
             </p>
+            <button type="button" class="confirm-button block field-action" onclick="applyBaudRate()" data-i18n="settings.writeBaud">写入波特率</button>
         </div>
         <div class="field">
             <label for="choice7" data-i18n="settings.mode">芯片工作模式</label>
@@ -537,12 +537,11 @@
                 这一项要点「写入工作模式」才会写进芯片，「保存」不写芯片。
                 写入后要断电重插才生效，被控端可能弹出键盘识别向导。
             </p>
+            <button type="button" class="confirm-button block field-action" onclick="applyWorkingMode()" data-i18n="settings.writeMode">写入工作模式</button>
         </div>
-        <div class="actions two-columns">
-            <button type="button" class="confirm-button" onclick="authUsb()" data-i18n="settings.authUsb">授权控制器</button>
-            <button type="button" class="confirm-button" onclick="applyBaudRate()" data-i18n="settings.writeBaud">写入波特率</button>
-            <button type="button" class="confirm-button" onclick="applyWorkingMode()" data-i18n="settings.writeMode">写入工作模式</button>
-            <button type="button" class="confirm-button" onclick="restoreDefaults(this)" data-i18n="settings.restore">恢复出厂配置</button>
+        <!-- 同时改波特率和工作模式，不属于任何一项，单独隔开放最后 -->
+        <div class="section">
+            <button type="button" class="confirm-button block" onclick="restoreDefaults(this)" data-i18n="settings.restore">恢复出厂配置</button>
         </div>
     </div>
 
