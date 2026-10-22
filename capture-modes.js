@@ -4,7 +4,8 @@
 // 由用户在关掉控制页后手动重测
 var CaptureModes = (function () {
     var STORAGE_KEY = "chrome-kvm-capture-modes";
-    var HIGH_FRAME_RATE = 60;
+    // 实测帧率不到要的这么多才算不支持，数帧总有一两帧误差
+    var ENOUGH = 0.8;
 
     function parseSize(value) {
         var match = /^(\d+)x(\d+)$/.exec(String(value || ""));
@@ -15,43 +16,69 @@ var CaptureModes = (function () {
         return size.width > 0 && size.height > 0 ? size : null;
     }
 
-    function exact(size, frameRate) {
-        var constraints = {width: {exact: size.width}, height: {exact: size.height}, resizeMode: "none"};
-        if (frameRate) {
-            constraints.frameRate = {exact: frameRate};
-        }
-        return constraints;
-    }
-
-    // 先按高帧率要，成了就是支持 60；不成再不限帧率要，拿到的就是这档的帧率
-    async function probeSize(track, size) {
-        try {
-            await track.applyConstraints(exact(size, HIGH_FRAME_RATE));
-            return HIGH_FRAME_RATE;
-        } catch (e) {
-            await track.applyConstraints(exact(size));
-            return Math.round(track.getSettings().frameRate || 0) || null;
-        }
-    }
-
     async function probe(track, sizes) {
         var modes = [];
-        var frameRates = {};
         for (var i = 0; i < sizes.length; i++) {
             var size = parseSize(sizes[i]);
             if (!size) {
                 continue;
             }
             try {
-                frameRates[sizes[i]] = await probeSize(track, size);
+                await track.applyConstraints({
+                    width: {exact: size.width},
+                    height: {exact: size.height},
+                    resizeMode: "none"
+                });
                 modes.push(sizes[i]);
             } catch (e) {
                 // 不支持这个档位，接着试下一个
             }
         }
         // 列表从大到小排，第一个就是最大的
-        var max = modes.length ? {size: modes[0], frameRate: frameRates[modes[0]]} : null;
-        return {modes: modes, frameRates: frameRates, max: max};
+        return {modes: modes, max: modes.length ? {size: modes[0]} : null};
+    }
+
+    // 帧率没法问浏览器：有的卡每档都声称能到 60，实际 1080p 只出 30，只能数真正到了几帧。
+    // 刚打开的前一会儿帧率不稳，先跳过 warmup 毫秒再数 duration 毫秒。
+    // 页面在后台时视频帧回调会停，过了时限还没数完就返回 null
+    function countFrames(video, warmup, duration) {
+        return new Promise(function (resolve) {
+            var first = null;
+            var start = null;
+            var frames = 0;
+            var timer = setTimeout(function () {
+                resolve(null);
+            }, (warmup + duration) * 3);
+            function onFrame(now) {
+                if (first === null) {
+                    first = now;
+                }
+                if (now - first >= warmup) {
+                    if (start === null) {
+                        start = now;
+                    } else {
+                        frames++;
+                    }
+                    if (now - start >= duration) {
+                        clearTimeout(timer);
+                        resolve(Math.round(frames * 1000 / (now - start)));
+                        return;
+                    }
+                }
+                video.requestVideoFrameCallback(onFrame);
+            }
+            video.requestVideoFrameCallback(onFrame);
+        });
+    }
+
+    function measuredKey(resolution, frameRate) {
+        return resolution + "@" + frameRate;
+    }
+
+    // 选了这个分辨率和帧率，实测只有多少帧；够数或者还没测过返回 null
+    function frameRateOutcome(resolution, frameRate, result) {
+        var measured = result && result.measured && result.measured[measuredKey(resolution, frameRate)];
+        return measured && measured < frameRate * ENOUGH ? {frameRate: measured} : null;
     }
 
     // Chrome 挑档位用的「适合度距离」：宽、高各自的相对差加起来，越小越接近
@@ -86,34 +113,6 @@ var CaptureModes = (function () {
         return {kind: "fallback", size: best.width + "x" + best.height};
     }
 
-    // 选了这个分辨率和帧率，帧率实际会退到多少；拿得到就返回 null。
-    // 缩放出来的分辨率看能覆盖它的档位里最快的那个
-    function frameRateOutcome(value, frameRate, result) {
-        if (!result || !result.frameRates || !frameRate) {
-            return null;
-        }
-        var size = outcome(value, result.modes);
-        if (!size) {
-            return null;
-        }
-        var best;
-        if (size.kind === "native") {
-            best = result.frameRates[value];
-        } else if (size.kind === "fallback") {
-            best = result.frameRates[size.size];
-        } else {
-            var want = parseSize(value);
-            best = 0;
-            result.modes.forEach(function (mode) {
-                var have = parseSize(mode);
-                if (have.width >= want.width && have.height >= want.height) {
-                    best = Math.max(best, result.frameRates[mode] || 0);
-                }
-            });
-        }
-        return best && best < frameRate ? {frameRate: best} : null;
-    }
-
     function readAll(storage) {
         try {
             var raw = storage && storage.getItem(STORAGE_KEY);
@@ -140,6 +139,8 @@ var CaptureModes = (function () {
         parseSize: parseSize,
         probe: probe,
         outcome: outcome,
+        countFrames: countFrames,
+        measuredKey: measuredKey,
         frameRateOutcome: frameRateOutcome,
         load: load,
         save: save

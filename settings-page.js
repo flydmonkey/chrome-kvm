@@ -167,16 +167,77 @@ function renderResolutionSupport(result) {
         }
         annotate(option, note);
     });
-    renderFrameRateSupport();
+    measureFrameRate();
 }
 
 // 帧率能不能到要看选的是哪个分辨率，所以跟着分辨率下拉框走
-function renderFrameRateSupport() {
+function renderFrameRateSupport(measuring) {
     let resolution = document.querySelector("#choice4").value;
+    let selected = document.querySelector("#frameRate").value;
     Array.from(document.querySelector("#frameRate").options).forEach(function (option) {
         let outcome = CaptureModes.frameRateOutcome(resolution, Number(option.value), probeResult);
-        annotate(option, outcome ? I18n.t("settings.frameRate.fallback", {fps: outcome.frameRate}) : "");
+        let note = outcome ? I18n.t("settings.frameRate.fallback", {fps: outcome.frameRate}) : "";
+        if (measuring && option.value === selected) {
+            note = I18n.t("settings.frameRate.measuring");
+        }
+        annotate(option, note);
     });
+}
+
+// 每次测帧率加一。测的过程中又换了卡、分辨率或帧率，旧的结果就不要了
+let measureGeneration = 0;
+
+// 选了高于 30 的帧率才值得测：按控制页一样的方式打开采集卡，数一会儿实际到了几帧。
+// 要先检测过分辨率，结果跟检测结果存在一起，「重新检测」时一起清掉
+async function measureFrameRate() {
+    let generation = ++measureGeneration;
+    renderFrameRateSupport(false);
+    let deviceId = document.querySelector("#choice1").value;
+    let size = CaptureModes.parseSize(document.querySelector("#choice4").value);
+    let frameRate = Number(document.querySelector("#frameRate").value);
+    if (!deviceId || !probeResult || !size || frameRate <= 30) {
+        return;
+    }
+    let key = CaptureModes.measuredKey(size.width + "x" + size.height, frameRate);
+    if (probeResult.measured && probeResult.measured[key]) {
+        return;
+    }
+    let result = probeResult;
+    renderFrameRateSupport(true);
+    let stream = null;
+    let measured = null;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+                deviceId: {exact: deviceId},
+                width: {ideal: size.width},
+                height: {ideal: size.height},
+                frameRate: {ideal: frameRate}
+            }
+        });
+        let video = document.createElement("video");
+        video.muted = true;
+        video.srcObject = stream;
+        await video.play();
+        measured = await CaptureModes.countFrames(video, 500, 1500);
+    } catch (e) {
+        // 打不开就不标，采集卡被占用时检测那里已经有提示
+    } finally {
+        if (stream) {
+            stream.getTracks().forEach(function (track) {
+                track.stop();
+            });
+        }
+    }
+    if (generation !== measureGeneration || result !== probeResult) {
+        return;
+    }
+    if (measured) {
+        result.measured = Object.assign({}, result.measured, {[key]: measured});
+        CaptureModes.save(localStorage, deviceId, result);
+    }
+    renderFrameRateSupport(false);
 }
 
 function setProbeHint(text) {
@@ -191,8 +252,7 @@ function showProbeResult(result) {
         setProbeHint(I18n.t("settings.resolution.probeNone"));
         return;
     }
-    let max = result.max.size.replace("x", "×") + (result.max.frameRate ? ", " + result.max.frameRate + " fps" : "");
-    setProbeHint(I18n.t("settings.resolution.probed", {count: result.modes.length, max: max}));
+    setProbeHint(I18n.t("settings.resolution.probed", {count: result.modes.length, max: result.max.size.replace("x", "×")}));
 }
 
 // 检测要打开采集卡，同一张卡检测过就用存下的结果；force 是用户点了「重新检测」
@@ -215,16 +275,12 @@ async function probeResolutions(force) {
     renderResolutionSupport(null);
     setProbeHint(I18n.t("settings.resolution.probing"));
     let stream = null;
+    let result = null;
     try {
         stream = await navigator.mediaDevices.getUserMedia({audio: false, video: {deviceId: {exact: deviceId}}});
-        let result = await CaptureModes.probe(stream.getVideoTracks()[0], resolutionOptions().map(function (option) {
+        result = await CaptureModes.probe(stream.getVideoTracks()[0], resolutionOptions().map(function (option) {
             return option.value;
         }));
-        if (generation !== probeGeneration) {
-            return;
-        }
-        CaptureModes.save(localStorage, deviceId, result);
-        showProbeResult(result);
     } catch (e) {
         if (generation === probeGeneration) {
             setProbeHint(I18n.t("settings.resolution.probeFailed", {message: describeMediaError(e)}));
@@ -239,6 +295,11 @@ async function probeResolutions(force) {
         if (generation === probeGeneration) {
             button.disabled = false;
         }
+    }
+    // 放掉采集卡之后再出结果，接着测帧率要重新打开它
+    if (result && generation === probeGeneration) {
+        CaptureModes.save(localStorage, deviceId, result);
+        showProbeResult(result);
     }
 }
 
@@ -820,7 +881,8 @@ renderMedia();
 document.querySelector("#choice1").addEventListener("change", function () {
     probeResolutions(false);
 });
-document.querySelector("#choice4").addEventListener("change", renderFrameRateSupport);
+document.querySelector("#choice4").addEventListener("change", measureFrameRate);
+document.querySelector("#frameRate").addEventListener("change", measureFrameRate);
 renderUsb();
 renderAtx();
 renderUsed();
