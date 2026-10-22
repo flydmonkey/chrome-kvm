@@ -59,8 +59,8 @@ Not a good fit — for these, we recommend One-KVM (cheap boards such as Orange 
 ### Hardware
 
 1. A controller computer with the Chrome browser installed
-2. A USB video capture card [Buy (Taobao)](http://e.tb.cn/h.TfXLcXooYTXSM4E?tk=XEqJ3xEBB9g)
-3. A CH9329 remote keyboard/mouse controller [Buy (Taobao)](http://e.tb.cn/h.TfXoUbjkCYXwmeW?tk=7Rlp3xEAdqD)
+2. A USB video capture card
+3. A CH9329 remote keyboard/mouse controller
 4. A target PC
 5. (Optional) An LCUS-series USB serial relay to press the power button remotely; see "ATX power" below
 

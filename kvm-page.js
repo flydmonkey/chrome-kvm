@@ -1418,10 +1418,6 @@ async function pasteText() {
     showNotice(summary.message, {level: summary.level, key: "paste", timeout: summary.timeout});
 }
 
-function paste() {
-    pasteText();
-}
-
 function releaseAllInput() {
     if (!ch) {
         return;

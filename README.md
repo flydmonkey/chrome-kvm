@@ -59,8 +59,8 @@ Chrome-KVM 基于 Chrome 浏览器开发的 BIOS 级远程控制项目。仅打�
 ### 硬件设备
 
 1. 控制端安装 带有Chrome浏览器
-2. USB视频采集卡 [购买网站](http://e.tb.cn/h.TfXLcXooYTXSM4E?tk=XEqJ3xEBB9g)
-3. CH9329 远程鼠键控制器 [购买网站](http://e.tb.cn/h.TfXoUbjkCYXwmeW?tk=7Rlp3xEAdqD)
+2. USB视频采集卡
+3. CH9329 远程鼠键控制器
 4. 一台被控端PC
 5. （可选）LCUS 系列 USB 串口继电器，用来远程按电源键，见下文「ATX 电源」
 

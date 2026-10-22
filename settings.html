@@ -554,6 +554,7 @@
                 继电器的常开触点（COM、NO）并接在主板前面板的电源键跳线（PWR_SW）上，机箱上的电源键照样能用。
                 继电器和 CH9329 多半都是 CH340，列表里名字一样也没关系：控制页会排除正在当键鼠用的那个。
             </p>
+            <button type="button" class="confirm-button block field-action" onclick="authUsb()" data-i18n="settings.authRelay">授权继电器</button>
         </div>
         <div class="field">
             <label for="atxChannel" data-i18n="settings.atx.channelLabel">继电器通道</label>
@@ -565,7 +566,6 @@
             <select id="atxResetChannel" name="atxResetChannel"></select>
             <p class="hint" data-i18n="settings.atx.resetHint">两路以上的继电器可以再接主板的 RESET 两根针，控制页电源面板会多一个「按一下复位键」。不能和电源键同一路</p>
         </div>
-        <button type="button" class="confirm-button block" onclick="authUsb()" data-i18n="settings.authRelay">授权继电器</button>
     </div>
 
     <div class="section">
