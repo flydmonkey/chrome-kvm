@@ -140,17 +140,24 @@ function renderMedia() {
 
 // 每次检测加一。换了采集卡时上一次检测还没跑完，跑完的结果不能盖到新卡上
 let probeGeneration = 0;
+// 当前采集卡的检测结果，换分辨率时要拿它重新标帧率
+let probeResult = null;
 
 function resolutionOptions() {
     return Array.from(document.querySelector("#choice4").options);
 }
 
+function annotate(option, note) {
+    if (!option.dataset.label) {
+        option.dataset.label = option.textContent;
+    }
+    option.textContent = note ? option.dataset.label + " — " + note : option.dataset.label;
+}
+
 // 在每个分辨率后面标上这张卡选了会怎样；原生支持的不标
 function renderResolutionSupport(result) {
+    probeResult = result;
     resolutionOptions().forEach(function (option) {
-        if (!option.dataset.label) {
-            option.dataset.label = option.textContent;
-        }
         let outcome = result ? CaptureModes.outcome(option.value, result.modes) : null;
         let note = "";
         if (outcome && outcome.kind === "fallback") {
@@ -158,7 +165,17 @@ function renderResolutionSupport(result) {
         } else if (outcome && outcome.kind === "scaled") {
             note = I18n.t("settings.resolution.scaled");
         }
-        option.textContent = note ? option.dataset.label + " — " + note : option.dataset.label;
+        annotate(option, note);
+    });
+    renderFrameRateSupport();
+}
+
+// 帧率能不能到要看选的是哪个分辨率，所以跟着分辨率下拉框走
+function renderFrameRateSupport() {
+    let resolution = document.querySelector("#choice4").value;
+    Array.from(document.querySelector("#frameRate").options).forEach(function (option) {
+        let outcome = CaptureModes.frameRateOutcome(resolution, Number(option.value), probeResult);
+        annotate(option, outcome ? I18n.t("settings.frameRate.fallback", {fps: outcome.frameRate}) : "");
     });
 }
 
@@ -803,6 +820,7 @@ renderMedia();
 document.querySelector("#choice1").addEventListener("change", function () {
     probeResolutions(false);
 });
+document.querySelector("#choice4").addEventListener("change", renderFrameRateSupport);
 renderUsb();
 renderAtx();
 renderUsed();

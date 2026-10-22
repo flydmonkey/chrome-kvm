@@ -373,6 +373,7 @@
     "settings.frameRate": "采集帧率",
     "settings.frameRate.default": "默认（浏览器决定，Chrome 通常是 30）",
     "settings.frameRate.hint": "60 fps 画面更跟手，但要采集卡支持。不少采集卡在 1080p 下只有 30 fps，选了 60 会自动退回，分辨率优先",
+    "settings.frameRate.fallback": "这个分辨率下不支持，实际为 {fps} fps",
     "settings.authMedia": "授权视频采集卡",
     "settings.tab.input": "键鼠",
     "settings.serialPort": "串口",

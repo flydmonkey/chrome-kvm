@@ -373,6 +373,7 @@
     "settings.frameRate": "キャプチャのフレームレート",
     "settings.frameRate.default": "既定（ブラウザーが決定。Chrome では通常 30）",
     "settings.frameRate.hint": "60 fps のほうが操作への追従性が高くなりますが、キャプチャカードの対応が必要です。多くのキャプチャカードは 1080p では 30 fps までのため、60 を選んでも解像度が優先され、自動的に 30 fps に下がります",
+    "settings.frameRate.fallback": "この解像度では非対応、実際は {fps} fps",
     "settings.authMedia": "キャプチャカードを許可",
     "settings.tab.input": "入力",
     "settings.serialPort": "シリアルポート",

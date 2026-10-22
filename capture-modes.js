@@ -23,34 +23,35 @@ var CaptureModes = (function () {
         return constraints;
     }
 
+    // 先按高帧率要，成了就是支持 60；不成再不限帧率要，拿到的就是这档的帧率
+    async function probeSize(track, size) {
+        try {
+            await track.applyConstraints(exact(size, HIGH_FRAME_RATE));
+            return HIGH_FRAME_RATE;
+        } catch (e) {
+            await track.applyConstraints(exact(size));
+            return Math.round(track.getSettings().frameRate || 0) || null;
+        }
+    }
+
     async function probe(track, sizes) {
         var modes = [];
+        var frameRates = {};
         for (var i = 0; i < sizes.length; i++) {
             var size = parseSize(sizes[i]);
             if (!size) {
                 continue;
             }
             try {
-                await track.applyConstraints(exact(size));
+                frameRates[sizes[i]] = await probeSize(track, size);
                 modes.push(sizes[i]);
             } catch (e) {
                 // 不支持这个档位，接着试下一个
             }
         }
-        if (!modes.length) {
-            return {modes: modes, max: null};
-        }
         // 列表从大到小排，第一个就是最大的
-        var biggest = parseSize(modes[0]);
-        var frameRate;
-        try {
-            await track.applyConstraints(exact(biggest, HIGH_FRAME_RATE));
-            frameRate = HIGH_FRAME_RATE;
-        } catch (e) {
-            await track.applyConstraints(exact(biggest)).catch(function () {});
-            frameRate = Math.round(track.getSettings().frameRate || 0) || null;
-        }
-        return {modes: modes, max: {size: modes[0], frameRate: frameRate}};
+        var max = modes.length ? {size: modes[0], frameRate: frameRates[modes[0]]} : null;
+        return {modes: modes, frameRates: frameRates, max: max};
     }
 
     // Chrome 挑档位用的「适合度距离」：宽、高各自的相对差加起来，越小越接近
@@ -85,6 +86,34 @@ var CaptureModes = (function () {
         return {kind: "fallback", size: best.width + "x" + best.height};
     }
 
+    // 选了这个分辨率和帧率，帧率实际会退到多少；拿得到就返回 null。
+    // 缩放出来的分辨率看能覆盖它的档位里最快的那个
+    function frameRateOutcome(value, frameRate, result) {
+        if (!result || !result.frameRates || !frameRate) {
+            return null;
+        }
+        var size = outcome(value, result.modes);
+        if (!size) {
+            return null;
+        }
+        var best;
+        if (size.kind === "native") {
+            best = result.frameRates[value];
+        } else if (size.kind === "fallback") {
+            best = result.frameRates[size.size];
+        } else {
+            var want = parseSize(value);
+            best = 0;
+            result.modes.forEach(function (mode) {
+                var have = parseSize(mode);
+                if (have.width >= want.width && have.height >= want.height) {
+                    best = Math.max(best, result.frameRates[mode] || 0);
+                }
+            });
+        }
+        return best && best < frameRate ? {frameRate: best} : null;
+    }
+
     function readAll(storage) {
         try {
             var raw = storage && storage.getItem(STORAGE_KEY);
@@ -111,6 +140,7 @@ var CaptureModes = (function () {
         parseSize: parseSize,
         probe: probe,
         outcome: outcome,
+        frameRateOutcome: frameRateOutcome,
         load: load,
         save: save
     };
