@@ -9,7 +9,7 @@ let ch;
 function start(devices) {
     let settings = SettingsStore.read();
     if (!settings) {
-        window.location.href = "settings.html";
+        window.location.href = "settings.html#video";
         return;
     }
 
@@ -188,7 +188,7 @@ function noticeVideoUnconfigured() {
         level: "warn",
         key: "video",
         timeout: 0,
-        link: {text: I18n.t("common.goSettings"), href: "settings.html"}
+        link: {text: I18n.t("common.goSettings"), href: "settings.html#video"}
     });
 }
 
@@ -523,7 +523,7 @@ function openSerial(deviceId, mouseClickMode) {
                 showNotice(I18n.t("serial.notFound"), {
                     level: "error",
                     key: "serial",
-                    link: {text: I18n.t("common.goSettings"), href: "settings.html"}
+                    link: {text: I18n.t("common.goSettings"), href: "settings.html#input"}
                 });
                 return;
             }
@@ -1152,7 +1152,7 @@ async function pressPower(kind) {
         let opened = await AtxRelay.openRelayPort(await navigator.serial.getPorts(),
             SettingsStore.parseUsbFilter(atx.deviceId), activePort);
         if (opened.error) {
-            showNotice(opened.error, {level: "error", key: "power", link: {text: I18n.t("common.goSettings"), href: "settings.html"}});
+            showNotice(opened.error, {level: "error", key: "power", link: {text: I18n.t("common.goSettings"), href: "settings.html#power"}});
             return;
         }
         port = opened.port;

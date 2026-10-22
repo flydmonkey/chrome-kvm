@@ -99,8 +99,65 @@
             margin-bottom: 14px;
         }
 
-        .language-field {
-            margin-top: 16px;
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin: 16px 0 20px;
+            padding: 4px;
+            background-color: rgba(0, 0, 0, 0.25);
+            border-radius: 10px;
+        }
+
+        .tabs [role="tab"] {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 6px;
+            font: inherit;
+            font-size: 13px;
+            color: #a1a1aa;
+            background: none;
+            border: none;
+            border-radius: 7px;
+            cursor: pointer;
+            transition: background-color 0.15s, color 0.15s;
+        }
+
+        .tabs [role="tab"] span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .tabs [role="tab"] svg {
+            width: 15px;
+            height: 15px;
+            flex-shrink: 0;
+        }
+
+        .tabs [role="tab"]:hover {
+            color: #e4e4e7;
+        }
+
+        .tabs [role="tab"][aria-selected="true"] {
+            color: #f4f4f5;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .tabs [role="tab"]:focus-visible {
+            outline: 2px solid #60a5fa;
+            outline-offset: -2px;
+        }
+
+        .tab-panel[hidden] {
+            display: none;
+        }
+
+        .hint.panel-intro {
+            margin: 0 0 16px;
         }
 
         label {
@@ -248,6 +305,11 @@
             flex: 1;
         }
 
+        .actions.two-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
         .hint {
             margin: 6px 0 0;
             font-size: 12px;
@@ -283,52 +345,101 @@
 <div class="form-container">
     <h2 data-i18n="settings.heading">设备设置</h2>
     <p class="page-hint" data-i18n="settings.pageHint">选择采集卡和 CH9329 控制器，保存后回到控制页。浏览器的设备授权是按网址记的，换网址要重新授权。</p>
-    <div class="field language-field">
-        <label for="languageSelect" data-i18n="settings.language">界面语言（Language）</label>
-        <select id="languageSelect" name="languageSelect" onchange="changeLanguage()"></select>
-    </div>
-
-    <div class="section">
-        <div class="section-title">
+    <!-- 标签页记在网址的 # 后面，刷新、保存后停在原处，控制页也能直接链到某一页 -->
+    <div class="tabs" role="tablist" aria-label="设置分类" data-i18n-aria-label="settings.tabs">
+        <button type="button" role="tab" id="tab-general" data-tab="general" aria-controls="panel-general" aria-selected="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                  stroke-linejoin="round" aria-hidden="true">
-                <rect x="2" y="3" width="20" height="13" rx="2"/>
-                <path d="M8 21h8"/>
-                <path d="M12 16v5"/>
+                <path d="M4 6h9"/>
+                <path d="M17 6h3"/>
+                <circle cx="15" cy="6" r="2"/>
+                <path d="M4 12h3"/>
+                <path d="M11 12h9"/>
+                <circle cx="9" cy="12" r="2"/>
+                <path d="M4 18h11"/>
+                <path d="M19 18h1"/>
+                <circle cx="17" cy="18" r="2"/>
             </svg>
-            <span data-i18n="settings.section.profiles">被控机配置</span>
-        </div>
-        <div class="field">
-            <label for="profileSelect" data-i18n="settings.profile.current">当前配置</label>
-            <select id="profileSelect" name="profileSelect" onchange="switchProfile()"></select>
-            <p class="hint" data-i18n="settings.profile.hint">
-                接了多台被控机时，每台的采集卡、串口、分辨率、鼠标模式各存一份，选中即切换。
-                选中某份配置后点「保存」会同步更新它。波特率和芯片工作模式是芯片自己的状态，不随配置切换。
-                控制页工具栏也能快速切换。
-            </p>
-        </div>
-        <div class="actions">
-            <button type="button" class="confirm-button" onclick="saveProfileAs()" data-i18n="settings.profile.saveAs">按当前表单另存为…</button>
-            <button type="button" class="confirm-button" id="profileDelete" onclick="deleteProfile(this)" data-i18n="settings.profile.delete">删除此配置</button>
-        </div>
-        <div class="profile-name-row" id="profileNameRow" hidden>
-            <input type="text" id="profileName" maxlength="20" autocomplete="off"
-                   placeholder="给这台被控机起个名字，同名会覆盖" data-i18n-placeholder="settings.profile.namePlaceholder" aria-label="配置名" data-i18n-aria-label="settings.profile.nameLabel">
-            <button type="button" class="confirm-button primary" onclick="confirmProfileName()" data-i18n="common.save">保存</button>
-            <button type="button" class="confirm-button" onclick="cancelProfileName()" data-i18n="common.cancel">取消</button>
-        </div>
-    </div>
-
-    <div class="section">
-        <!-- 图标和控制页工具栏上的视频状态用的是同一个 -->
-        <div class="section-title">
+            <span data-i18n="settings.tab.general">常规</span>
+        </button>
+        <button type="button" role="tab" id="tab-video" data-tab="video" aria-controls="panel-video" aria-selected="false" tabindex="-1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                  stroke-linejoin="round" aria-hidden="true">
                 <rect x="2" y="6" width="14" height="12" rx="2"/>
                 <path d="M22 8l-6 4 6 4V8z"/>
             </svg>
-            <span data-i18n="settings.section.video">视频采集</span>
+            <span data-i18n="settings.tab.video">视频</span>
+        </button>
+        <button type="button" role="tab" id="tab-input" data-tab="input" aria-controls="panel-input" aria-selected="false" tabindex="-1">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true">
+                <rect x="1" y="8" width="14" height="10" rx="2"/>
+                <path d="M4 11.5h.01"/>
+                <path d="M7.5 11.5h.01"/>
+                <path d="M11 11.5h.01"/>
+                <path d="M4.5 14.5h6"/>
+                <rect x="17" y="6" width="6" height="12" rx="3"/>
+                <path d="M20 8.5v2"/>
+            </svg>
+            <span data-i18n="settings.tab.input">键鼠</span>
+        </button>
+        <button type="button" role="tab" id="tab-power" data-tab="power" aria-controls="panel-power" aria-selected="false" tabindex="-1">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3v9"/>
+                <path d="M6.3 6.3a8 8 0 1 0 11.4 0"/>
+            </svg>
+            <span data-i18n="settings.tab.power">电源</span>
+        </button>
+    </div>
+
+    <div class="tab-panel" role="tabpanel" id="panel-general" data-tab="general" aria-labelledby="tab-general">
+        <div class="field">
+            <label for="languageSelect" data-i18n="settings.language">界面语言（Language）</label>
+            <select id="languageSelect" name="languageSelect" onchange="changeLanguage()"></select>
         </div>
+
+        <div class="section">
+            <div class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                     stroke-linejoin="round" aria-hidden="true">
+                    <rect x="2" y="3" width="20" height="13" rx="2"/>
+                    <path d="M8 21h8"/>
+                    <path d="M12 16v5"/>
+                </svg>
+                <span data-i18n="settings.section.profiles">被控机配置</span>
+            </div>
+            <div class="field">
+                <label for="profileSelect" data-i18n="settings.profile.current">当前配置</label>
+                <select id="profileSelect" name="profileSelect" onchange="switchProfile()"></select>
+                <p class="hint" data-i18n="settings.profile.hint">
+                    接了多台被控机时，每台的采集卡、串口、分辨率、鼠标模式各存一份，选中即切换。
+                    选中某份配置后点「保存」会同步更新它。波特率和芯片工作模式是芯片自己的状态，不随配置切换。
+                    控制页工具栏也能快速切换。
+                </p>
+            </div>
+            <div class="actions">
+                <button type="button" class="confirm-button" onclick="saveProfileAs()" data-i18n="settings.profile.saveAs">按当前表单另存为…</button>
+                <button type="button" class="confirm-button" id="profileDelete" onclick="deleteProfile(this)" data-i18n="settings.profile.delete">删除此配置</button>
+            </div>
+            <div class="profile-name-row" id="profileNameRow" hidden>
+                <input type="text" id="profileName" maxlength="20" autocomplete="off"
+                       placeholder="给这台被控机起个名字，同名会覆盖" data-i18n-placeholder="settings.profile.namePlaceholder" aria-label="配置名" data-i18n-aria-label="settings.profile.nameLabel">
+                <button type="button" class="confirm-button primary" onclick="confirmProfileName()" data-i18n="common.save">保存</button>
+                <button type="button" class="confirm-button" onclick="cancelProfileName()" data-i18n="common.cancel">取消</button>
+            </div>
+        </div>
+
+        <div class="section" id="savedSection" style="display: none">
+            <div class="section-title" data-i18n="settings.section.saved">当前已保存</div>
+            <p class="saved-line" id="usedVideo" style="display: none"></p>
+            <p class="saved-line" id="usedAudio" style="display: none"></p>
+            <p class="saved-line" id="usedUsb" style="display: none"></p>
+            <p class="saved-line" id="usedAtx" style="display: none"></p>
+        </div>
+    </div>
+
+    <div class="tab-panel" role="tabpanel" id="panel-video" data-tab="video" aria-labelledby="tab-video" hidden>
         <div class="field">
             <label for="choice1"><span data-i18n="settings.used.video">视频</span> (<span data-i18n="settings.captureCardName">USB 视频采集卡</span>)</label>
             <select id="choice1" name="choice1"></select>
@@ -376,21 +487,7 @@
         <button type="button" class="confirm-button block" onclick="authMedia()" data-i18n="settings.authMedia">授权视频采集卡</button>
     </div>
 
-    <div class="section">
-        <!-- 图标和工具栏上的键鼠状态一致 -->
-        <div class="section-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
-                 stroke-linejoin="round" aria-hidden="true">
-                <rect x="1" y="8" width="14" height="10" rx="2"/>
-                <path d="M4 11.5h.01"/>
-                <path d="M7.5 11.5h.01"/>
-                <path d="M11 11.5h.01"/>
-                <path d="M4.5 14.5h6"/>
-                <rect x="17" y="6" width="6" height="12" rx="3"/>
-                <path d="M20 8.5v2"/>
-            </svg>
-            <span data-i18n="settings.section.serial">键鼠控制器</span>
-        </div>
+    <div class="tab-panel" role="tabpanel" id="panel-input" data-tab="input" aria-labelledby="tab-input" hidden>
         <div class="field">
             <label for="choice2"><span data-i18n="settings.serialPort">串口</span> (<span data-i18n="settings.controllerName">CH9329 键鼠控制器</span>)</label>
             <select id="choice2" name="choice2"></select>
@@ -441,7 +538,7 @@
                 写入后要断电重插才生效，被控端可能弹出键盘识别向导。
             </p>
         </div>
-        <div class="actions">
+        <div class="actions two-columns">
             <button type="button" class="confirm-button" onclick="authUsb()" data-i18n="settings.authUsb">授权控制器</button>
             <button type="button" class="confirm-button" onclick="applyBaudRate()" data-i18n="settings.writeBaud">写入波特率</button>
             <button type="button" class="confirm-button" onclick="applyWorkingMode()" data-i18n="settings.writeMode">写入工作模式</button>
@@ -449,16 +546,8 @@
         </div>
     </div>
 
-    <div class="section">
-        <!-- 图标和控制页工具栏上的电源按钮一致 -->
-        <div class="section-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-                 stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 3v9"/>
-                <path d="M6.3 6.3a8 8 0 1 0 11.4 0"/>
-            </svg>
-            <span data-i18n="settings.section.atx">ATX 电源（可选）</span>
-        </div>
+    <div class="tab-panel" role="tabpanel" id="panel-power" data-tab="power" aria-labelledby="tab-power" hidden>
+        <p class="hint panel-intro" data-i18n="settings.atx.optional">可选。用 USB 继电器在控制页上按被控机的电源键，没有继电器可以不管这一页。</p>
         <div class="field">
             <label for="atxPort" data-i18n="settings.atx.port">继电器串口（LCUS 系列 USB 继电器）</label>
             <select id="atxPort" name="atxPort"></select>
@@ -478,14 +567,6 @@
             <p class="hint" data-i18n="settings.atx.resetHint">两路以上的继电器可以再接主板的 RESET 两根针，控制页电源面板会多一个「按一下复位键」。不能和电源键同一路</p>
         </div>
         <button type="button" class="confirm-button block" onclick="authUsb()" data-i18n="settings.authRelay">授权继电器</button>
-    </div>
-
-    <div class="section" id="savedSection" style="display: none">
-        <div class="section-title" data-i18n="settings.section.saved">当前已保存</div>
-        <p class="saved-line" id="usedVideo" style="display: none"></p>
-        <p class="saved-line" id="usedAudio" style="display: none"></p>
-        <p class="saved-line" id="usedUsb" style="display: none"></p>
-        <p class="saved-line" id="usedAtx" style="display: none"></p>
     </div>
 
     <div class="section">
