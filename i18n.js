@@ -57,10 +57,6 @@ var I18n = (function () {
     }
 
     function initialLanguage() {
-        // node 下跑单测：断言都是按简体中文原文写的
-        if (typeof window === "undefined") {
-            return "zh-CN";
-        }
         var store = storage();
         var saved = store && store.getItem(STORAGE_KEY);
         if (isSupported(saved)) {
@@ -156,5 +152,8 @@ if (typeof module !== "undefined" && module.exports) {
     I18n.LANGUAGES.forEach(function (language) {
         I18n.register(language.code, require("./locales/" + language.code + ".js"));
     });
+    // node 下跑单测：断言都是按简体中文原文写的。不能靠有没有 window 判断：
+    // 有的测试会补一个 window，Node 21 起又自带 navigator，语言就成了系统语言
+    I18n.setLanguage("zh-CN", {persist: false});
     module.exports = I18n;
 }
