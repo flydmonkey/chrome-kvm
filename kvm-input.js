@@ -226,6 +226,4 @@ function toggleFullScreen() {
 // 画面尺寸要等元数据到了才有，所以拿到流之后还得再刷一次状态
 ['loadedmetadata', 'resize', 'playing', 'emptied'].forEach(function (name) {
     videoElement.addEventListener(name, renderVideoStatus);
-    // 1:1 和放大要按画面的真实尺寸算，被控端换分辨率时也会触发 resize
-    videoElement.addEventListener(name, applyViewLayout);
 });

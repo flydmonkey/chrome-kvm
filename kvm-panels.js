@@ -77,6 +77,10 @@ function toggleViewPanel(force) {
 }
 
 window.addEventListener("resize", applyViewLayout);
+// 1:1 和放大要按画面的真实尺寸算，被控端换分辨率时也会触发 resize
+['loadedmetadata', 'resize', 'playing', 'emptied'].forEach(function (name) {
+    videoElement.addEventListener(name, applyViewLayout);
+});
 // 别的标签页改了显示方式（比如同时开着两个控制页），这边跟着换
 window.addEventListener("storage", function (event) {
     if (event.key === ViewModes.STORAGE_KEY) {
