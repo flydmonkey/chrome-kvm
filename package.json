@@ -4,6 +4,7 @@
   "description": "浏览器里的 BIOS 级 KVM：画面走 USB 采集卡，键鼠走 Web Serial + CH9329",
   "private": true,
   "scripts": {
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test \"test/*.test.js\"",
+    "build": "node scripts/build-site.js"
   }
 }

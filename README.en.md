@@ -366,7 +366,9 @@ If it still won't open after closing everything, unplug the CH9329 and plug it b
 
 ### Development
 
-The project is a purely static site with no build step; serve it with any static server (Web Serial requires HTTPS or localhost).
+The project is a purely static site and needs no build during development; serve the repository folder with any static server (Web Serial requires HTTPS or localhost).
+
+After a push to `main`, GitHub Actions runs the tests, then `npm run build`: it copies the files to publish into `_site/`, rewrites the pages' script and style references to `xxx.js?v=<content hash>`, and deploys to GitHub Pages. A changed file gets a new URL, so users never get old scripts with a new page. If you deploy elsewhere, publishing the `_site/` produced by `npm run build` is recommended too.
 
 The keyboard/mouse protocol has a test suite with no external dependencies; the expected bytes are taken directly from the command examples in the CH9329 Serial Communication Protocol V1.3:
 

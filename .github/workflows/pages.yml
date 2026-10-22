@@ -1,0 +1,38 @@
+name: pages
+
+# 发布到 GitHub Pages。仓库设置里 Pages 的来源要选「GitHub Actions」
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 连着推两次时只发布最后一次，但正在发布的那次不打断
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # 测试不过就不发布
+      - run: npm test
+      # 复制到 _site/，HTML 里的脚本和样式加上 ?v=内容哈希，免得浏览器拿旧脚本配新页面
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
