@@ -408,6 +408,11 @@
     "settings.atx.resetLabel": "리셋 버튼 채널",
     "settings.atx.resetHint": "2채널 이상 릴레이는 메인보드의 RESET 핀 2개도 연결할 수 있으며, 그러면 제어 페이지 전원 패널에 ‘리셋 버튼 누르기’가 추가됩니다. 전원 버튼과 같은 채널은 사용할 수 없습니다",
     "settings.authRelay": "릴레이 권한 부여",
+    "settings.tab.tools": "도구",
+    "settings.tools.intro": "독립된 작은 도구입니다. 새 탭에서 열리며 여기 설정과 컨트롤 페이지에 영향을 주지 않습니다.",
+    "settings.tools.terminal": "시리얼 터미널",
+    "settings.tools.terminalHint": "USB-시리얼 변환기로 스위치, 라우터, 개발 보드, 서버의 콘솔 포트에 연결합니다. 캡처 카드나 CH9329가 필요 없습니다.",
+    "settings.tools.openTerminal": "시리얼 터미널 열기",
     "settings.section.saved": "현재 저장된 설정",
     "settings.back": "제어 페이지로 돌아가기"
 });

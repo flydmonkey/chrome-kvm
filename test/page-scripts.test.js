@@ -5,9 +5,13 @@ const path = require("node:path");
 
 const ROOT = path.join(__dirname, "..");
 
+const PAGES = ["index.html", "settings.html", "terminal.html"];
+
+// vendor/ 下是压缩过的第三方库，不按本项目的写法检查
 function pageScripts(page) {
     const html = fs.readFileSync(path.join(ROOT, page), "utf8");
-    return Array.from(html.matchAll(/<script src="([^"]+)"><\/script>/g), m => m[1]);
+    return Array.from(html.matchAll(/<script src="([^"]+)"><\/script>/g), m => m[1])
+        .filter(src => !src.startsWith("vendor/"));
 }
 
 // 只认写在行首的声明：缩进的都在函数里，不占全局名字。var 不算：
@@ -86,7 +90,7 @@ test("加载时就用到后加载脚本里的函数，能查出来", () => {
 });
 
 test("页面脚本加载时不会用到后加载脚本里的函数", () => {
-    for (const page of ["index.html", "settings.html"]) {
+    for (const page of PAGES) {
         const sources = pageScripts(page).map(src => ({
             name: src,
             source: fs.readFileSync(path.join(ROOT, src), "utf8")
@@ -106,7 +110,7 @@ test("控制页的 kvm-*.js 都由 index.html 加载，入口 kvm-page.js 排第
 // 普通 <script> 共用一个全局作用域：两个文件顶层各 let 一个同名变量，后加载的整个文件
 // 会直接报错不执行；同名函数则是后面的悄悄覆盖前面的
 test("同一个页面的脚本之间没有重名的顶层声明", () => {
-    for (const page of ["index.html", "settings.html"]) {
+    for (const page of PAGES) {
         const seen = new Map();
         for (const src of pageScripts(page)) {
             for (const name of topLevelNames(src)) {

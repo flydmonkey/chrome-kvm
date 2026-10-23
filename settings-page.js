@@ -821,7 +821,7 @@ function changeTheme() {
     Theme.set(document.querySelector("#themeSelect").value);
 }
 
-const SETTINGS_TABS = ["general", "video", "input", "power"];
+const SETTINGS_TABS = ["general", "video", "input", "power", "tools"];
 
 function tabFromHash() {
     let name = window.location.hash.replace(/^#/, "");

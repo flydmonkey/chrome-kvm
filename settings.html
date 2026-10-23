@@ -385,6 +385,13 @@
             </svg>
             <span data-i18n="settings.tab.power">电源</span>
         </button>
+        <button type="button" role="tab" id="tab-tools" data-tab="tools" aria-controls="panel-tools" aria-selected="false" tabindex="-1">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+            <span data-i18n="settings.tab.tools">工具</span>
+        </button>
     </div>
 
     <div class="tab-panel" role="tabpanel" id="panel-general" data-tab="general" aria-labelledby="tab-general">
@@ -576,6 +583,23 @@
             <label for="atxResetChannel" data-i18n="settings.atx.resetLabel">复位键通道</label>
             <select id="atxResetChannel" name="atxResetChannel"></select>
             <p class="hint" data-i18n="settings.atx.resetHint">两路以上的继电器可以再接主板的 RESET 两根针，控制页电源面板会多一个「按一下复位键」。不能和电源键同一路</p>
+        </div>
+    </div>
+
+    <div class="tab-panel" role="tabpanel" id="panel-tools" data-tab="tools" aria-labelledby="tab-tools" hidden>
+        <p class="hint panel-intro" data-i18n="settings.tools.intro">独立的小工具，在新标签页打开，不影响这里的设置和控制页。</p>
+        <div class="field">
+            <div class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                     stroke-linejoin="round" aria-hidden="true">
+                    <rect x="2" y="4" width="20" height="16" rx="2"/>
+                    <path d="M6 9l3 3-3 3"/>
+                    <path d="M12 15h5"/>
+                </svg>
+                <span data-i18n="settings.tools.terminal">串口终端</span>
+            </div>
+            <p class="hint" data-i18n="settings.tools.terminalHint">通过 USB 转串口连接交换机、路由器、开发板或服务器的 console 口，不需要采集卡和 CH9329。</p>
+            <button type="button" class="confirm-button block field-action" onclick="window.open('terminal.html', '_blank')" data-i18n="settings.tools.openTerminal">打开串口终端</button>
         </div>
     </div>
 

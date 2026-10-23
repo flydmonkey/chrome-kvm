@@ -408,6 +408,11 @@
     "settings.atx.resetLabel": "リセットボタンのチャンネル",
     "settings.atx.resetHint": "2 チャンネル以上のリレーでは、マザーボードの RESET の 2 本のピンにも接続でき、操作ページの電源パネルに「リセットボタンを押す」が追加されます。電源ボタンと同じチャンネルは使用できません",
     "settings.authRelay": "リレーを許可",
+    "settings.tab.tools": "ツール",
+    "settings.tools.intro": "独立した小さなツールです。新しいタブで開き、ここの設定やコントロールページには影響しません。",
+    "settings.tools.terminal": "シリアルターミナル",
+    "settings.tools.terminalHint": "USB シリアル変換でスイッチ、ルーター、開発ボード、サーバーのコンソールポートに接続します。キャプチャカードや CH9329 は不要です。",
+    "settings.tools.openTerminal": "シリアルターミナルを開く",
     "settings.section.saved": "現在保存されている設定",
     "settings.back": "操作ページに戻る"
 });

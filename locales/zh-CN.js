@@ -408,6 +408,11 @@
     "settings.atx.resetLabel": "复位键通道",
     "settings.atx.resetHint": "两路以上的继电器可以再接主板的 RESET 两根针，控制页电源面板会多一个「按一下复位键」。不能和电源键同一路",
     "settings.authRelay": "授权继电器",
+    "settings.tab.tools": "工具",
+    "settings.tools.intro": "独立的小工具，在新标签页打开，不影响这里的设置和控制页。",
+    "settings.tools.terminal": "串口终端",
+    "settings.tools.terminalHint": "通过 USB 转串口连接交换机、路由器、开发板或服务器的 console 口，不需要采集卡和 CH9329。",
+    "settings.tools.openTerminal": "打开串口终端",
     "settings.section.saved": "当前已保存",
     "settings.back": "返回控制页"
 });

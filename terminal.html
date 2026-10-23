@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title data-i18n="term.pageTitle">串口终端 - Chrome KVM</title>
+    <meta name="description" content="Chrome KVM">
+    <link rel="icon" href="app.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="app-192.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="vendor/xterm/xterm.css">
+    <style>
+        :root {
+            --terminal-bg: #0c0c0e;
+            --mono: Consolas, "Cascadia Mono", Menlo, "DejaVu Sans Mono", monospace;
+        }
+
+        :root[data-theme="light"] {
+            --terminal-bg: #ffffff;
+        }
+
+        html, body {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            font: 13px/1.5 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            background-color: var(--page-bg);
+        }
+
+        html:lang(zh-TW) body {
+            font-family: system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+        }
+
+        html:lang(ja) body {
+            font-family: system-ui, -apple-system, "Segoe UI", "Yu Gothic UI", Meiryo, sans-serif;
+        }
+
+        html:lang(ko) body {
+            font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+        }
+
+        html:lang(en) body {
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        /* ---------- 通用控件 ---------- */
+
+        label {
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        select,
+        input[type="text"],
+        input[type="number"] {
+            box-sizing: border-box;
+            font: inherit;
+            color: var(--text);
+            background-color: var(--field-bg);
+            border: 1px solid var(--tint-12);
+            border-radius: 7px;
+            padding: 5px 8px;
+        }
+
+        select {
+            padding-right: 26px;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            background-size: 12px;
+        }
+
+        select option {
+            color: var(--text);
+            background-color: var(--option-bg);
+        }
+
+        select:hover,
+        input[type="text"]:hover,
+        input[type="number"]:hover {
+            border-color: var(--tint-22);
+        }
+
+        button {
+            font: inherit;
+            padding: 5px 11px;
+            color: var(--text);
+            background-color: var(--tint-08);
+            border: 1px solid var(--tint-12);
+            border-radius: 7px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background-color 0.15s, border-color 0.15s;
+        }
+
+        button:hover {
+            background-color: var(--tint-15);
+        }
+
+        select:focus-visible,
+        input:focus-visible,
+        button:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 1px;
+        }
+
+        button:disabled,
+        select:disabled,
+        input:disabled {
+            opacity: 0.45;
+            cursor: default;
+        }
+
+        button.primary {
+            font-weight: 600;
+            color: #0b0b0d;
+            background-color: #3ddc84;
+            border-color: transparent;
+        }
+
+        button.primary:hover {
+            background-color: #34c975;
+        }
+
+        button.ghost {
+            background: none;
+            border-color: transparent;
+            color: var(--text-muted);
+        }
+
+        button.ghost:hover:not(:disabled) {
+            color: var(--text);
+            background-color: var(--tint-08);
+        }
+
+        button.ghost[aria-pressed="true"] {
+            color: var(--text);
+            background-color: var(--tint-12);
+        }
+
+        .check {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            color: var(--text);
+        }
+
+        .check input {
+            margin: 0;
+            accent-color: var(--accent);
+        }
+
+        .spacer {
+            flex: 1;
+        }
+
+        /* ---------- 顶栏 ---------- */
+
+        header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 10px;
+            padding: 8px 12px;
+            background-color: var(--card);
+            border-bottom: 1px solid var(--tint-08);
+        }
+
+        h1 {
+            margin: 0 6px 0 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-strong);
+        }
+
+        #port {
+            width: 240px;
+        }
+
+        #baudSelect,
+        #baudRate {
+            width: 96px;
+        }
+
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        /* ---------- 中间：终端 + 参数面板 ---------- */
+
+        .workspace {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+        }
+
+        main {
+            position: relative;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            padding: 8px 4px 6px 10px;
+            background-color: var(--terminal-bg);
+        }
+
+        #terminal {
+            flex: 1;
+            min-height: 0;
+        }
+
+        /* ---------- 数据曲线 ---------- */
+
+        .plot {
+            flex: 0 0 34%;
+            min-height: 160px;
+            display: flex;
+            flex-direction: column;
+            margin: 6px 6px 0 0;
+            border-top: 1px solid var(--tint-12);
+        }
+
+        .plot-bar {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 0;
+        }
+
+        .plot-bar button {
+            padding: 1px 8px;
+            font-size: 12px;
+        }
+
+        .plot-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 14px;
+            min-width: 0;
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .plot-key::before {
+            content: "";
+            display: inline-block;
+            width: 10px;
+            height: 3px;
+            margin-right: 6px;
+            vertical-align: middle;
+            border-radius: 2px;
+            background-color: var(--key-color);
+        }
+
+        .plot-area {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+        }
+
+        #plotCanvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .plot-empty {
+            position: absolute;
+            inset: 0;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 20px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-faint);
+        }
+
+        /* xterm 默认 overflow-y: scroll，内容没满一屏也挂着滚动条。
+           改成 auto 不影响列数：xterm 量不到滚动条宽度时照样预留 15px */
+        .xterm .xterm-viewport {
+            overflow-y: auto;
+        }
+
+        .xterm .xterm-viewport,
+        .panel {
+            scrollbar-width: thin;
+            scrollbar-color: var(--tint-22) transparent;
+        }
+
+        .search-box {
+            position: absolute;
+            top: 8px;
+            right: 24px;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px;
+            background-color: var(--option-bg);
+            border: 1px solid var(--tint-15);
+            border-radius: 9px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .search-box input {
+            width: 200px;
+            padding: 3px 8px;
+        }
+
+        .search-box button {
+            padding: 3px 8px;
+        }
+
+        .panel {
+            width: 270px;
+            flex-shrink: 0;
+            box-sizing: border-box;
+            overflow-y: auto;
+            padding: 0 14px 14px;
+            background-color: var(--card);
+            border-left: 1px solid var(--tint-08);
+        }
+
+        .panel section {
+            padding: 14px 0;
+            border-bottom: 1px solid var(--tint-08);
+        }
+
+        .panel section:last-child {
+            border-bottom: none;
+        }
+
+        .panel h2 {
+            margin: 0 0 10px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            color: var(--text-faint);
+        }
+
+        /* 各组标签列同宽，输入框左边缘才对得齐 */
+        .panel {
+            --label-width: 5em;
+        }
+
+        html:lang(en) .panel,
+        html:lang(ja) .panel,
+        html:lang(ko) .panel {
+            --label-width: 7.5em;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: var(--label-width) minmax(0, 1fr);
+            align-items: center;
+            gap: 8px 12px;
+        }
+
+        .form-grid select,
+        .form-grid input {
+            width: 100%;
+        }
+
+        .form-grid label {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .form-grid + .check,
+        .check + .check {
+            margin-top: 10px;
+        }
+
+        .signals {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .signal-toggle {
+            padding: 0 8px;
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--text-muted);
+            background: none;
+        }
+
+        .signal-toggle[aria-pressed="true"] {
+            color: var(--text-strong);
+            border-color: var(--accent);
+            background-color: color-mix(in srgb, var(--accent) 22%, transparent);
+        }
+
+        .leds {
+            display: flex;
+            gap: 10px;
+            margin-left: 6px;
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--text-faint);
+        }
+
+        .led {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .led::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background-color: var(--tint-22);
+        }
+
+        .led.on {
+            color: var(--text);
+        }
+
+        .led.on::before {
+            background-color: var(--ok);
+        }
+
+        .preset-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .preset {
+            display: flex;
+        }
+
+        .preset-send {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 4px 10px;
+            text-align: left;
+            border-radius: 7px 0 0 7px;
+        }
+
+        .preset-send span {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .preset-data {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--text-faint);
+        }
+
+        .preset-remove {
+            margin-left: -1px;
+            padding: 0 9px;
+            color: var(--text-faint);
+            border-radius: 0 7px 7px 0;
+        }
+
+        .preset-remove:hover {
+            color: var(--error-text);
+        }
+
+        .preset-edit {
+            margin-left: -1px;
+            padding: 0 8px;
+            color: var(--text-faint);
+            border-radius: 0;
+        }
+
+        .preset-edit:hover {
+            color: var(--text);
+        }
+
+        select.wide {
+            width: 100%;
+        }
+
+        .button-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        /* ---------- 脚本编辑框 ---------- */
+
+        .script-dialog {
+            width: min(640px, calc(100vw - 40px));
+            padding: 18px 20px;
+            color: var(--text);
+            background-color: var(--card);
+            border: 1px solid var(--tint-15);
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+        }
+
+        .script-dialog::backdrop {
+            background-color: rgba(0, 0, 0, 0.45);
+        }
+
+        .script-dialog form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .script-dialog h2 {
+            margin: 0;
+            font-size: 15px;
+            color: var(--text-strong);
+        }
+
+        .script-dialog textarea {
+            box-sizing: border-box;
+            width: 100%;
+            resize: vertical;
+            padding: 8px 10px;
+            font: 13px/1.5 var(--mono);
+            color: var(--text);
+            background-color: var(--field-bg);
+            border: 1px solid var(--tint-12);
+            border-radius: 7px;
+        }
+
+        .script-help {
+            margin: 0;
+            padding: 8px 10px;
+            white-space: pre-wrap;
+            font: 12px/1.6 var(--mono);
+            color: var(--text-muted);
+            background-color: var(--tint-08);
+            border-radius: 7px;
+        }
+
+        .script-error {
+            margin: 0;
+            min-height: 1.5em;
+            color: var(--error-text);
+        }
+
+        .dialog-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .empty {
+            margin: 0;
+            font-size: 12px;
+            color: var(--text-faint);
+        }
+
+        .preset-list + .empty,
+        .add-button + .empty {
+            margin-top: 6px;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .section-head h2 {
+            margin: 0;
+        }
+
+        .trigger {
+            box-sizing: border-box;
+            background-color: var(--tint-08);
+            border: 1px solid var(--tint-12);
+        }
+
+        .add-button {
+            width: 100%;
+            margin-top: 8px;
+        }
+
+        .form-grid + .add-button {
+            margin-top: 10px;
+        }
+
+        .unit-input {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .unit-input input {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .unit-input span {
+            color: var(--text-faint);
+        }
+
+        /* ---------- 发送栏、状态栏 ---------- */
+
+        .sendbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 10px;
+            padding: 8px 12px;
+            background-color: var(--card);
+            border-top: 1px solid var(--tint-08);
+        }
+
+        #sendInput {
+            flex: 1 1 260px;
+            min-width: 0;
+            font-family: var(--mono);
+        }
+
+        .field {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #loopMs {
+            width: 76px;
+        }
+
+        footer {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px 16px;
+            padding: 4px 12px;
+            min-height: 28px;
+            box-sizing: border-box;
+            font-size: 12px;
+            background-color: var(--card);
+            border-top: 1px solid var(--tint-08);
+        }
+
+        .status {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px 10px;
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .status button {
+            padding: 1px 10px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--text-faint);
+            flex-shrink: 0;
+        }
+
+        .status[data-state="connected"] .status-dot {
+            background-color: var(--ok);
+        }
+
+        .status[data-state="connecting"] .status-dot,
+        .status[data-state="lost"] .status-dot {
+            background-color: var(--warn);
+        }
+
+        #statusText,
+        #message {
+            color: var(--text-muted);
+        }
+
+        #message[data-level="error"] {
+            color: var(--error-text);
+        }
+
+        #recordStatus {
+            color: var(--ok);
+        }
+
+        #recordStatus::before {
+            content: "● ";
+        }
+
+        #termSize,
+        #counters {
+            padding: 0 8px;
+            font-family: var(--mono);
+            font-size: 12px;
+        }
+
+        .hint {
+            margin: 0;
+            color: var(--text-faint);
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1 data-i18n="term.title">串口终端</h1>
+    <select id="port" data-i18n-aria-label="term.port"></select>
+    <button type="button" id="authorizeButton" data-i18n="term.authorize">授权新串口</button>
+    <div class="field">
+        <label for="baudSelect" data-i18n="term.baudRate">波特率</label>
+        <select id="baudSelect"></select>
+        <input type="text" id="baudRate" hidden inputmode="numeric" autocomplete="off" data-i18n-title="term.baudHint" data-i18n-aria-label="term.baudRate">
+    </div>
+    <button type="button" id="connectButton" class="primary" data-i18n="term.connect">连接</button>
+    <button type="button" id="chooseButton" hidden data-i18n="term.choose">选择串口</button>
+    <button type="button" class="ghost" id="panelButton" aria-pressed="true" aria-controls="panel" data-i18n="term.panel">参数面板</button>
+    <span class="spacer"></span>
+    <div class="actions">
+        <button type="button" class="ghost" id="breakButton" data-i18n="term.break">发送 Break</button>
+        <button type="button" class="ghost" id="clearButton" data-i18n="term.clear">清屏</button>
+        <button type="button" class="ghost" id="copyButton" data-i18n="term.copy">复制</button>
+        <button type="button" class="ghost" id="pasteButton" data-i18n="term.paste">粘贴</button>
+        <button type="button" class="ghost" id="searchButton" data-i18n="term.search">搜索</button>
+        <button type="button" class="ghost" id="plotButton" aria-pressed="false" aria-controls="plotPanel" data-i18n="term.plot" data-i18n-title="term.plot.hint">曲线</button>
+        <button type="button" class="ghost" id="saveLogButton" data-i18n="term.saveLog">保存日志</button>
+        <button type="button" class="ghost" id="recordButton" aria-pressed="false" hidden data-i18n="term.record" data-i18n-title="term.recordHint">记录到文件</button>
+    </div>
+</header>
+<div class="workspace">
+    <main>
+        <div id="terminal"></div>
+        <div class="search-box" id="searchBox" hidden>
+            <input type="text" id="searchInput" autocomplete="off" spellcheck="false" data-i18n-placeholder="term.search.placeholder">
+            <button type="button" id="searchPrev" data-i18n-title="term.search.prev" data-i18n-aria-label="term.search.prev">↑</button>
+            <button type="button" id="searchNext" data-i18n-title="term.search.next" data-i18n-aria-label="term.search.next">↓</button>
+            <button type="button" id="searchClose" data-i18n-title="term.search.close" data-i18n-aria-label="term.search.close">×</button>
+        </div>
+        <section class="plot" id="plotPanel" hidden>
+            <div class="plot-bar">
+                <div class="plot-legend" id="plotLegend"></div>
+                <span class="spacer"></span>
+                <button type="button" class="ghost" id="plotPause" data-i18n="term.plot.pause">暂停</button>
+                <button type="button" class="ghost" id="plotClear" data-i18n="term.plot.clear">清空</button>
+                <button type="button" class="ghost" id="plotClose" data-i18n-title="term.plot.close" data-i18n-aria-label="term.plot.close">×</button>
+            </div>
+            <div class="plot-area">
+                <canvas id="plotCanvas"></canvas>
+                <p class="plot-empty" id="plotEmpty" data-i18n="term.plot.empty"></p>
+            </div>
+        </section>
+    </main>
+    <aside class="panel" id="panel">
+        <section>
+            <h2 data-i18n="term.section.profile">设备配置</h2>
+            <select id="profile" class="wide" data-i18n-aria-label="term.section.profile" data-i18n-title="term.profile.hint"></select>
+            <div class="button-row">
+                <button type="button" id="saveProfileButton" data-i18n="term.profile.save" data-i18n-title="term.profile.saveHint">保存为…</button>
+                <button type="button" id="deleteProfileButton" data-i18n="term.profile.delete">删除</button>
+            </div>
+            <div class="button-row">
+                <button type="button" id="exportButton" data-i18n="term.export" data-i18n-title="term.exportHint">导出</button>
+                <button type="button" id="importButton" data-i18n="term.import">导入</button>
+                <input type="file" id="importInput" accept=".json,application/json" hidden>
+            </div>
+        </section>
+        <section>
+            <h2 data-i18n="term.section.serial">串口参数</h2>
+            <div class="form-grid">
+                <label for="dataBits" data-i18n="term.dataBits">数据位</label>
+                <select id="dataBits"></select>
+                <label for="parity" data-i18n="term.parity">校验位</label>
+                <select id="parity"></select>
+                <label for="stopBits" data-i18n="term.stopBits">停止位</label>
+                <select id="stopBits"></select>
+                <label for="flowControl" data-i18n="term.flowControl">流控</label>
+                <select id="flowControl"></select>
+            </div>
+        </section>
+        <section>
+            <h2 data-i18n="term.section.receive">接收</h2>
+            <div class="form-grid">
+                <label for="mode" data-i18n="term.mode">显示</label>
+                <select id="mode"></select>
+                <label for="encoding" data-i18n="term.encoding">编码</label>
+                <select id="encoding"></select>
+                <label for="frameGap" data-i18n="term.frameGap">分帧超时</label>
+                <div class="unit-input" data-i18n-title="term.frameGapHint">
+                    <input type="number" id="frameGap" min="1" max="5000" step="10">
+                    <span>ms</span>
+                </div>
+            </div>
+            <label class="check"><input type="checkbox" id="timestamp"><span data-i18n="term.timestamp">时间戳</span></label>
+        </section>
+        <section>
+            <h2 data-i18n="term.section.send">发送</h2>
+            <div class="form-grid">
+                <label for="newline" data-i18n="term.newline">回车发送</label>
+                <select id="newline"></select>
+                <label for="charDelay" data-i18n="term.charDelay">字符间隔</label>
+                <div class="unit-input" data-i18n-title="term.delayHint">
+                    <input type="number" id="charDelay" min="0" step="1">
+                    <span>ms</span>
+                </div>
+                <label for="lineDelay" data-i18n="term.lineDelay">行间隔</label>
+                <div class="unit-input" data-i18n-title="term.delayHint">
+                    <input type="number" id="lineDelay" min="0" step="10">
+                    <span>ms</span>
+                </div>
+            </div>
+            <label class="check"><input type="checkbox" id="localEcho"><span data-i18n="term.localEcho">本地回显</span></label>
+        </section>
+        <section>
+            <h2 data-i18n="term.section.terminal">终端</h2>
+            <div class="form-grid">
+                <label for="fontSize" data-i18n="term.fontSize">字号</label>
+                <input type="number" id="fontSize" min="8" max="32" data-i18n-title="term.fontSizeHint">
+                <label for="scrollback" data-i18n="term.scrollback">回滚行数</label>
+                <input type="number" id="scrollback" min="1000" max="100000" step="1000">
+            </div>
+            <label class="check" data-i18n-title="term.highlightHint"><input type="checkbox" id="highlight"><span data-i18n="term.highlight">关键字高亮</span></label>
+        </section>
+        <section>
+            <h2 data-i18n="term.section.presets">常用指令</h2>
+            <div class="preset-list" id="presets"></div>
+            <p class="empty" id="presetsEmpty" data-i18n="term.presetsEmpty"></p>
+        </section>
+        <section>
+            <div class="section-head">
+                <h2 data-i18n="term.section.triggers">自动应答</h2>
+                <label class="check"><input type="checkbox" id="triggersEnabled"><span data-i18n="term.triggersEnabled">启用</span></label>
+            </div>
+            <div class="preset-list" id="triggers"></div>
+            <p class="empty" id="triggersEmpty" data-i18n="term.triggersEmpty"></p>
+            <button type="button" class="add-button" id="addTriggerButton" data-i18n="term.addTrigger">添加</button>
+        </section>
+        <section>
+            <h2 data-i18n="term.section.scripts">脚本</h2>
+            <div class="preset-list" id="scripts"></div>
+            <p class="empty" id="scriptsEmpty" data-i18n="term.scriptsEmpty"></p>
+            <button type="button" class="add-button" id="addScriptButton" data-i18n="term.script.add">新建脚本</button>
+        </section>
+        <section>
+            <h2 data-i18n="term.section.transfer">文件传输</h2>
+            <div class="form-grid">
+                <label for="transferProtocol" data-i18n="term.transferProtocol">协议</label>
+                <select id="transferProtocol"></select>
+            </div>
+            <button type="button" class="add-button" id="sendFileButton" data-i18n="term.sendFile">选择文件并发送</button>
+            <input type="file" id="fileInput" hidden>
+            <p class="empty" data-i18n="term.transfer.hint"></p>
+        </section>
+    </aside>
+</div>
+<form class="sendbar" id="sendForm">
+    <select id="sendFormat" data-i18n-aria-label="term.sendFormat"></select>
+    <input type="text" id="sendInput" autocomplete="off" spellcheck="false">
+    <div class="field" id="checksumField">
+        <label for="checksum" data-i18n="term.checksum">校验</label>
+        <select id="checksum"></select>
+    </div>
+    <div class="field">
+        <label class="check"><input type="checkbox" id="loop"><span data-i18n="term.loop">循环发送</span></label>
+        <input type="number" id="loopMs" min="10" step="10" data-i18n-aria-label="term.loopMs">
+        <span>ms</span>
+    </div>
+    <button type="submit" id="sendButton" class="primary" data-i18n="term.send">发送</button>
+    <button type="button" id="savePresetButton" data-i18n="term.savePreset" data-i18n-title="term.savePresetHint">收藏</button>
+</form>
+<footer>
+    <div class="status" id="status" data-state="idle" role="status" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="statusText" data-i18n="term.status.idle">未连接</span>
+        <span id="message"></span>
+        <button type="button" id="confirmButton" hidden data-i18n="term.send">发送</button>
+        <button type="button" id="zmodemPickButton" class="primary" hidden data-i18n="term.zmodem.choose">选择文件</button>
+        <input type="file" id="zmodemInput" multiple hidden>
+        <button type="button" id="cancelButton" hidden data-i18n="term.cancel">取消</button>
+    </div>
+    <span id="recordStatus" hidden></span>
+    <div class="signals" role="group" data-i18n-aria-label="term.section.signals">
+        <button type="button" class="signal-toggle" id="dtrButton" aria-pressed="false" data-i18n-title="term.signalHint">DTR</button>
+        <button type="button" class="signal-toggle" id="rtsButton" aria-pressed="false" data-i18n-title="term.signalHint">RTS</button>
+        <div class="leds" data-i18n-title="term.ledHint">
+            <span class="led" id="ctsLed">CTS</span>
+            <span class="led" id="dsrLed">DSR</span>
+            <span class="led" id="dcdLed">DCD</span>
+            <span class="led" id="riLed">RI</span>
+        </div>
+    </div>
+    <button type="button" class="ghost" id="termSize" data-i18n-title="term.sizeHint"></button>
+    <button type="button" class="ghost" id="counters" data-i18n-title="term.countersHint"></button>
+    <p class="hint" data-i18n="term.chipHint"></p>
+</footer>
+<dialog class="script-dialog" id="scriptDialog">
+    <form id="scriptForm">
+        <h2 data-i18n="term.script.dialogTitle">编辑脚本</h2>
+        <input type="text" id="scriptName" maxlength="40" autocomplete="off" data-i18n-placeholder="term.script.namePlaceholder" data-i18n-aria-label="term.script.namePlaceholder">
+        <textarea id="scriptText" spellcheck="false" rows="14" data-i18n-aria-label="term.section.scripts"></textarea>
+        <pre class="script-help" data-i18n="term.script.help"></pre>
+        <p class="script-error" id="scriptError" role="alert"></p>
+        <div class="dialog-buttons">
+            <button type="button" id="scriptCancel" data-i18n="term.cancel">取消</button>
+            <button type="submit" class="primary" data-i18n="term.script.save">保存</button>
+        </div>
+    </form>
+</dialog>
+<script src="vendor/xterm/xterm.js"></script>
+<script src="vendor/xterm/addon-fit.js"></script>
+<script src="vendor/xterm/addon-search.js"></script>
+<script src="vendor/zmodem/zmodem.js"></script>
+<script src="i18n.js"></script>
+<script src="terminal-locales/zh-CN.js"></script>
+<script src="terminal-locales/zh-TW.js"></script>
+<script src="terminal-locales/en.js"></script>
+<script src="terminal-locales/ja.js"></script>
+<script src="terminal-locales/ko.js"></script>
+<script src="terminal.js"></script>
+<script src="terminal-page.js"></script>
+</body>
+</html>

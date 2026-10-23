@@ -408,6 +408,11 @@
     "settings.atx.resetLabel": "重設鍵通道",
     "settings.atx.resetHint": "兩路以上的繼電器可以再接主機板的 RESET 兩根針腳，控制頁電源面板會多一個「按一下重設鍵」。不能和電源鍵同一路",
     "settings.authRelay": "授權繼電器",
+    "settings.tab.tools": "工具",
+    "settings.tools.intro": "獨立的小工具，在新分頁開啟，不影響這裡的設定和控制頁。",
+    "settings.tools.terminal": "序列埠終端",
+    "settings.tools.terminalHint": "透過 USB 轉序列埠連接交換器、路由器、開發板或伺服器的 console 埠，不需要擷取卡和 CH9329。",
+    "settings.tools.openTerminal": "開啟序列埠終端",
     "settings.section.saved": "目前已儲存",
     "settings.back": "返回控制頁"
 });

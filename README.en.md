@@ -31,7 +31,7 @@ The table below compares Chrome-KVM with several common KVM solutions. It is not
 |     Paste text to the target PC   |       √       |             √             |      √      |       √        |     Unknown      |         Unknown          |    √ (ASCII only)     |
 |       OCR text recognition        |       √       |             √             |      √      |    Unknown     |     Unknown      |            √             | √ (EN / zh-Hans / zh-Hant) |
 |           Web terminal            |       √       |             √             |      √      |    Unknown     |        √         |            x             |           x           |
-|          Serial terminal          |       x       |             x             |      √      | Serial extension board | √ (2 ports) |          √             |           x           |
+|          Serial terminal          |       x       |             x             |      √      | Serial extension board | √ (2 ports) |          √             |           √           |
 |        HDMI switch support        |       √       |             √             |      √      |    Unknown     |     Unknown      |            x             |           x           |
 |          Video recording          |       √       |             x             |      x      |    Unknown     |     Unknown      |            √             |   √ (saved locally)   |
 |         Docker deployment         |       √       |             x             |      x      |       x        |        x         |            x             |           x           |
@@ -63,6 +63,7 @@ Not a good fit — for these, we recommend One-KVM (cheap boards such as Orange 
 3. A CH9329 remote keyboard/mouse controller
 4. A target PC
 5. (Optional) An LCUS-series USB serial relay to press the power button remotely; see "ATX power" below
+6. (Optional) A USB-to-TTL or USB-to-RS232 cable for the target device's serial console; see "Serial terminal" below
 
 ### Quick start
 
@@ -253,6 +254,110 @@ The relay is part of the "Target PC profile", so each machine can have its own r
 - **Power-on works, but a short press doesn't shut down**: That's a setting on the target PC's OS. On Windows, go to "Control Panel → Power Options → Choose what the power buttons do" and set "When I press the power button" to "Shut down". On Linux desktops it's usually in the power settings; on servers, see `HandlePowerKey` in `/etc/systemd/logind.conf`.
 - **I accidentally closed the page during a long press**: The relay stays closed, which is the same as holding the power button down. Unplug and replug the relay's USB cable to release it; it always opens when it loses power.
 - **The relay can't be opened on a Linux controller**: As with the CH9329, you need to grant serial port permissions, e.g. `sudo chmod 666 /dev/ttyUSB1`, or add your user to the `dialout` group and log in again.
+
+### Serial terminal
+
+Many switches, routers, dev boards and industrial PCs only have a serial console and no video output, and on a Linux server booted with `console=ttyS0` the full kernel crash log goes to the serial port too. The serial terminal is a standalone web tool: plug in a USB-to-serial cable and use it. It doesn't need the capture card or the CH9329, and it doesn't affect the control page.
+
+To open it, go to the "Tools" tab on the settings page and click "Open serial terminal"; it opens in a new tab. You can also open `terminal.html` directly and bookmark it.
+
+#### What you need
+
+Pick the cable by the target device's signal level — **the wrong one can destroy the adapter**:
+
+- **TTL level (3.3V / 5V)**: the `TX`, `RX` and `GND` pins on dev boards and router mainboards. Get a "USB to TTL" module and cross the wires: the module's `TX` goes to the device's `RX`, the module's `RX` to the device's `TX`, and `GND` to `GND`. **Don't connect VCC**; the device has its own power. For 3.3V boards, set the module's voltage jumper to 3.3V.
+- **RS232 level (±12V)**: DB9 or RJ45 console ports on switches and servers. Get a "USB to RS232" cable; an RJ45 port also needs a console cable (RJ45 to DB9, usually included with the switch).
+
+**Use a cable with a different chip from the CH9329's**, such as FT232, CP2102 or PL2303. The USB-to-serial chip on CH9329 modules is usually a CH340, and if the terminal cable is also a CH340, the browser sees the two as identical. That's fine while the terminal page is open and holding the cable. But when it isn't, the control page tries every port of the same model when connecting the keyboard and mouse, and sends its probe bytes to the target device's console. At a login prompt that's just one bad input, but it can matter if the device is in the middle of configuration.
+
+#### Using it
+
+1. Click "Authorize new port" and pick the cable in the browser's list.
+2. Choose the baud rate and other parameters. Common defaults:
+
+   | Device                                          | Parameters |
+   |:------------------------------------------------|:-----------|
+   | Most switches and routers (Cisco, H3C, Huawei…) | 9600 8N1   |
+   | Linux servers, Raspberry Pi, most dev boards    | 115200 8N1 |
+
+3. Click "Connect" and press Enter in the terminal; you should see the device's prompt.
+
+The page has three parts: the top bar holds the port, the connection and the actions below; the settings panel is on the right ("Settings panel" next to "Connect" hides it to give the terminal more room); the send bar is below the terminal.
+
+Pick the baud rate from the dropdown in the top bar; for a value that isn't listed, such as 74880 for ESP8266 boot logs, choose "Custom…" at the bottom and type it in.
+
+Actions in the top bar:
+
+- **Send Break**: sends a Break signal of about 0.25 seconds. Some devices use it to enter the bootloader (such as Cisco ROMMON), and on a Linux serial console it works with SysRq.
+- **Copy**: copies the text selected in the terminal; Ctrl+Shift+C also works. Ctrl+C is sent to the device as-is, to interrupt a program.
+- **Paste**: sends the text on this computer's clipboard; Ctrl+V also works. It asks first if the text is more than one line, so a whole block of config doesn't get pasted into a switch by accident.
+- **Search**: finds text in the output; Ctrl+Shift+F also works. Enter finds the next match, Shift+Enter the previous one, and Esc closes it. Ctrl+F is still sent to the device.
+- **Save log**: saves the raw data received since the page was opened as a `.log` file, keeping the most recent 5MB.
+- **Record to file**: pick a file, and from then on received raw data is appended to it every 2 seconds with no size limit; click again to stop. Handy for leaving it running to catch intermittent issues. Only Chrome and Edge show this button.
+- **Plot**: opens a chart below the terminal that plots received numbers live. Lines like `temp=25.3 hum=40` (a colon works too) give one series per name; lines of bare numbers (separated by spaces or commas, such as `1.2 3.4`) give one series per position. Each series keeps the latest 500 points, and you can pause or clear it. Handy for tuning sensors or PID loops.
+- **Clear**: clears only the local display; nothing is sent to the device.
+
+Besides the serial parameters, the settings panel has these (grouped under "Device profiles", "Receive", "Send", "Terminal", "Quick commands", "Auto reply", "Scripts" and "File transfer"):
+
+- **Device profiles**: if you work on several devices in turn, save the port, serial parameters, view, encoding, send and checksum settings and auto replies as a profile ("Save as…"; the same name overwrites), then pick it from the list to switch everything at once. If the port changes, the open one is disconnected; if the parameters change, the port is reopened with them. Up to 30 profiles.
+- **Export / Import**: saves all settings (profiles, quick commands, auto replies, scripts and so on) to a `.json` file to import on another computer or browser. Importing replaces all current settings, and asks first.
+- **View**: with HEX selected, received data is shown in hex (lines starting with `RX`) and sent data is shown too (lines starting with `TX`), 16 bytes per line followed by an ASCII column. Use this mode for devices with binary protocols, such as relays, the CH9329 and Modbus.
+- **Frame gap**: in HEX view, a pause longer than this many milliseconds (100 by default) ends a frame and starts a new line. Raise it if one frame is split across lines at low baud rates; lower it if frames run together.
+- **Encoding**: UTF-8 or GBK. Switch to GBK if Chinese text from a device shows up garbled.
+- **Enter sends**: whether the Enter key sends CR, LF or CR+LF; the send bar appends the same line ending to text. Most devices use CR. If every line gets an extra blank line, switch to CR; if Enter does nothing, try CR+LF.
+- **Timestamps**: prefixes each received line with `[hh:mm:ss.mmm]`, for checking response times and timeouts.
+- **Char delay / Line delay**: when pasting, wait this many milliseconds after each character or line. Devices with tiny receive buffers, such as U-Boot or microcontrollers, drop characters when a block is pasted at once; a char delay (say 2 ms) or line delay (say 100 ms) fixes that. The status bar shows progress while pasting, with a "Cancel" button.
+- **Local echo**: also shows the text you send. Turn it on for devices that don't echo (many AT modules by default).
+- **Font size**: you can also press Ctrl+Plus / Ctrl+Minus or Ctrl+scroll in the terminal; Ctrl+0 resets it.
+- **Scrollback**: how many lines you can scroll back, 10,000 by default and up to 100,000. Raise it to keep a full Linux boot log.
+- **Highlight keywords**: words like error, fail, panic and fatal in received text are shown in red, and warning in yellow, so they stand out in long logs. Only the colors change; the received content is untouched.
+- **DTR / RTS** (in the status bar at the bottom): toggle these two lines by hand; highlighted means active. Boards such as ESP32 and Arduino use them to reset or enter download mode. With hardware flow control, RTS belongs to the driver and can't be toggled.
+- **CTS / DSR / DCD / RI**: line states from the other end; lit means active.
+- **Auto reply**: sends a reply automatically when some text is received. Click "Add reply", enter the text to wait for (case-sensitive), then the reply; in the reply `\r` is Enter, `\n` is a newline and `\x03` is Ctrl+C. For example, replying `\r` to `Hit any key to stop autoboot` stops in U-Boot on every boot. It only works while "Enabled" is ticked, and each reply fires at most once per second.
+- **Scripts**: write a "send → wait for reply → send" sequence as a script and click "Run" to execute it; the status bar shows the current line, with a "Cancel" button. One command per line: `send text` (adds Enter), `sendraw text` (doesn't), `hex A0 01 01 +sum8` (sends HEX, optionally with a checksum), `wait text` (waits for this text, up to 10 seconds by default, and stops with a message if it never arrives), `timeout seconds`, `delay ms`, `loop count … end` (0 repeats forever); lines starting with `#` are comments. For example, to keep toggling relay channel 1:
+
+  ```
+  loop 0
+  hex A0 01 01 +sum8
+  delay 1000
+  hex A0 01 00 +sum8
+  delay 1000
+  end
+  ```
+
+- **File transfer**: sends a file to the device over YMODEM, XMODEM or XMODEM-1K, or as raw bytes. Start the receiver on the device first (`loady` / `loadx` in U-Boot, `rb` / `rx filename` on Linux with lrzsz installed), then click "Choose file and send". The status bar shows progress, with a "Cancel" button.
+- **ZMODEM (sz / rz)**: no button needed. In text view, run `sz filename` on Linux and the page receives it automatically, saving it to the browser's download folder; run `rz` and a "Choose files" button appears in the status bar — pick one or more files to start sending. Click "Cancel" to stop a transfer. The device needs lrzsz installed.
+
+Below the terminal is the send bar, for composing a whole command before sending it:
+
+- Pick the format on the left: **Text** is sent in the current encoding with the "Enter sends" line ending appended; **HEX** sends raw bytes, written as `A0 01 01 A2`, `A00101A2` or `0xA0,0x01`.
+- **Checksum** (HEX only): appends a checksum, so you only type the leading bytes. Choose SUM8 (low 8 bits of the byte sum), XOR8, LRC (two's complement of the sum, used by Modbus ASCII), CRC8 (polynomial 0x07), CRC16 (Modbus RTU, low byte first), CRC16-CCITT (initial 0xFFFF, high byte first) or CRC32 (low byte first).
+- **Repeat**: when ticked, "Send" keeps resending at the given interval and the button becomes "Stop". Editing the content or disconnecting also stops it.
+- **Save**: stores the current content (with its format and checksum) as a quick command listed under "Quick commands" in the settings panel. Click it to send; click × to delete it.
+- **History**: press ↑ / ↓ in the input to go through what you sent before, up to 50 entries.
+
+On the right of the status bar are the terminal's columns × rows and the byte counters. A serial line can't carry the window size, so Linux on the other end lays things out for 80×24 and `vi` or `top` get garbled; after logging in, click the columns × rows to send `stty cols … rows …`. Click the byte counters to reset them.
+
+#### Debugging a USB relay
+
+LCUS relay commands are 4 bytes: `A0`, the channel number, the state (`01` closed, `00` open), and the low 8 bits of the sum of the first three bytes, i.e. SUM8.
+
+1. Plug in the relay on its own (no need to wire it to the motherboard), authorize and select it on the terminal page, choose 9600 baud and click "Connect".
+2. Set "View" to HEX. In the send bar, choose HEX and checksum SUM8, type `A0 01 01` and press Enter. The terminal shows `TX A0 01 01 A2`, channel 1 closes and you hear a click.
+3. Click "Save" and name it "Channel 1 on". Do the same with `A0 01 00` as "Channel 1 off"; from then on these two buttons switch it. For channel 2, change `01` to `02`.
+
+Click "Disconnect" when you're done, or the control page won't be able to open the relay.
+
+The port and parameters are remembered on this computer and preselected next time, but it doesn't connect automatically. If the cable is unplugged, the terminal shows it as disconnected and reconnects when it's plugged back in; once you click "Disconnect" it stops reconnecting. Closing the page while connected asks first.
+
+#### FAQ
+
+- **"2 ports of the same model are present and cannot be told apart"**: Two cables of the same model are plugged in (for example the other one is the CH9329). Click "Choose port" and pick the right one by port name (such as `COM5` or `ttyUSB1`) in the browser's list; the page keeps using it for reconnects.
+- **"Cannot open the port"**: Another program or tab is using it, such as the control page using it for keyboard and mouse, or a serial tool.
+- **Everything is garbled**: Wrong baud rate; try another one. If that doesn't help, check data bits and parity. If only Chinese text is garbled, set "Encoding" to GBK.
+- **Output shows up, but typing does nothing**: Most likely `TX` and `RX` are swapped, or "Flow control" is set to hardware while the cable only has three wires. Set it to "None".
+- **The dev board resets when you connect**: Boards with an auto-reset circuit (Arduino, some ESP32 boards) are reset by the port's DTR/RTS signals. That's how the board is designed, not a terminal problem.
+- **Can't open it on a Linux controller**: As with the CH9329, grant serial port permissions; see the FAQ under "ATX power" above.
 
 ### Touch screens
 

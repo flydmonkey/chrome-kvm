@@ -408,6 +408,11 @@
     "settings.atx.resetLabel": "Reset button channel",
     "settings.atx.resetHint": "With a relay of two or more channels, you can also wire the motherboard's RESET pins; the control page power panel then gets a \"Press the reset button\" option. Must differ from the power button channel",
     "settings.authRelay": "Authorize relay",
+    "settings.tab.tools": "Tools",
+    "settings.tools.intro": "Standalone tools. They open in a new tab and do not affect these settings or the control page.",
+    "settings.tools.terminal": "Serial Terminal",
+    "settings.tools.terminalHint": "Connect to the console port of a switch, router, dev board or server through a USB-serial adapter. No capture card or CH9329 needed.",
+    "settings.tools.openTerminal": "Open serial terminal",
     "settings.section.saved": "Currently saved",
     "settings.back": "Back to control page"
 });
