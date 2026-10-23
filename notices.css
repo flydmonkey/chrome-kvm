@@ -18,12 +18,11 @@
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    padding: 10px 12px 10px 14px;
+    padding: 10px 12px 10px 16px;
     background-color: var(--glass-strong);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--tint-10);
-    border-left: 3px solid var(--text-muted);
     border-radius: 8px;
     box-shadow: 0 8px 24px var(--shadow-color);
     color: var(--text-strong);
@@ -33,6 +32,13 @@
     word-break: break-word;
     cursor: default;
     pointer-events: auto;
+}
+
+/* 普通提示不加色条，只有警告和错误用色条标出来 */
+.notice-warn,
+.notice-error {
+    border-left-width: 3px;
+    padding-left: 14px;
 }
 
 .notice-warn {
