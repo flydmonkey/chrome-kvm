@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>kvm-core 控制</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="bar">
+    <strong>kvm-core</strong>
+    <span id="status" class="muted">连接中…</span>
+    <div class="spacer"></div>
+    <button type="button" id="btnCad" title="Ctrl+Alt+Delete">Ctrl+Alt+Del</button>
+    <button type="button" id="btnAtxShort" hidden>电源短按</button>
+    <button type="button" id="btnAtxLong" hidden>电源长按</button>
+    <button type="button" id="btnAtxReset" hidden>复位</button>
+    <button type="button" id="btnLogout">退出</button>
+  </header>
+  <main class="stage">
+    <canvas id="screen" tabindex="0"></canvas>
+    <aside id="aiPanel" class="ai-panel" hidden aria-hidden="true">
+      <h2>AI（二期）</h2>
+      <p class="muted">自然语言控制将在二期启用</p>
+    </aside>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

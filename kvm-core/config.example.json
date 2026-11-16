@@ -1,0 +1,18 @@
+{
+  "listen": "0.0.0.0:8080",
+  "username": "admin",
+  "password": "admin",
+  "video_source": "test-pattern",
+  "serial_port": "mock",
+  "baud": 115200,
+  "mouse_absolute": true,
+  "prefer_gpu_encode": true,
+  "width": 1280,
+  "height": 720,
+  "fps": 30,
+  "atx": {
+    "port": "mock",
+    "channel": 1,
+    "reset_channel": 2
+  }
+}

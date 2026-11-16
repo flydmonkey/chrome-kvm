@@ -482,3 +482,11 @@ CH9329 出厂默认 9600bps，在 1080p 下快速移动鼠标时可能略显迟�
 ```bash
 npm test
 ```
+
+### 实验：kvm-core（网络 IP-KVM / Rust）
+
+仓库内 `kvm-core/` 是一期旁路机服务（LAN 登录、WebRTC DataChannel 画面、CH9329、可选 ATX）。与上方「打开网页直连 USB」方案并存；说明见 [kvm-core/README.md](./kvm-core/README.md)。
+
+```bash
+cd kvm-core && cargo test && cargo run --release
+```

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>kvm-core 登录</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="login-body">
+  <form id="login" class="login-card">
+    <h1>kvm-core</h1>
+    <p class="muted">内网 IP-KVM 控制台</p>
+    <label>用户名 <input name="username" autocomplete="username" required /></label>
+    <label>口令 <input name="password" type="password" autocomplete="current-password" required /></label>
+    <button type="submit">登录</button>
+    <p id="err" class="error" hidden></p>
+  </form>
+  <script>
+    const form = document.getElementById('login');
+    const err = document.getElementById('err');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.hidden = true;
+      const fd = new FormData(form);
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: fd.get('username'),
+          password: fd.get('password'),
+        }),
+      });
+      if (!res.ok) {
+        err.textContent = '登录失败';
+        err.hidden = false;
+        return;
+      }
+      const data = await res.json();
+      localStorage.setItem('kvm_token', data.token);
+      location.href = '/index.html';
+    });
+  </script>
+</body>
+</html>
