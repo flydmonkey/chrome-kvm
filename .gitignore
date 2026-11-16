@@ -1,5 +1,7 @@
 idea
 .cursor/
 .agents/
-docs/
+docs/*
+!docs/superpowers/
+!docs/superpowers/**
 _site/
