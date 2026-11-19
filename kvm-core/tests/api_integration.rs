@@ -1,3 +1,4 @@
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use axum::body::Body;
@@ -8,7 +9,7 @@ use kvm_core::config::Config;
 use kvm_core::hid::{HidService, MockHid};
 use kvm_core::media::{MediaPipeline, TestPatternSource};
 use kvm_core::state::AppState;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use tower::ServiceExt;
 
 fn test_app() -> (axum::Router, Arc<MockHid>, Arc<MediaPipeline>) {
@@ -27,7 +28,8 @@ fn test_app() -> (axum::Router, Arc<MockHid>, Arc<MediaPipeline>) {
     let mock = Arc::new(MockHid::new());
     let hid = Arc::new(HidService::new(mock.clone(), true));
     let state = Arc::new(AppState {
-        config,
+        config: RwLock::new(config),
+        config_path: std::env::temp_dir().join("kvm-core-test.config.json"),
         auth,
         media: Arc::clone(&media),
         hid,
@@ -39,6 +41,7 @@ fn test_app() -> (axum::Router, Arc<MockHid>, Arc<MediaPipeline>) {
             busy: Mutex::new(false),
         }),
         viewers: Mutex::new(0),
+        input_locked: AtomicBool::new(false),
     });
     let web = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("web");
     (kvm_core::api::router(state, web), mock, media)
@@ -79,6 +82,19 @@ async fn login_status_frame_and_key() {
         .await
         .unwrap();
     assert_eq!(status.status(), StatusCode::OK);
+
+    let settings = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/settings")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(settings.status(), StatusCode::OK);
 
     let frame = app
         .clone()

@@ -29,7 +29,7 @@ pub async fn ws_video(
 async fn handle(socket: WebSocket, state: Arc<AppState>) {
     *state.viewers.lock() += 1;
     let (mut tx, mut rx) = socket.split();
-    let fps = state.config.fps.max(1);
+    let fps = state.config.read().fps.max(1);
     let interval = Duration::from_millis(1000 / u64::from(fps));
     let mut ticker = tokio::time::interval(interval);
 

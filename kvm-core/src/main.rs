@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -8,7 +9,7 @@ use kvm_core::config::Config;
 use kvm_core::hid::open_hid;
 use kvm_core::media::{open_source, MediaPipeline};
 use kvm_core::state::{AppState, AtxRuntime};
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use tracing::info;
 
 #[tokio::main]
@@ -69,23 +70,25 @@ async fn main() -> anyhow::Result<()> {
         busy: Mutex::new(false),
     });
 
+    let listen = config.listen.clone();
     let state = Arc::new(AppState {
-        config: config.clone(),
+        config: RwLock::new(config),
+        config_path: used_path,
         auth,
         media,
         hid,
         mock_hid,
         atx,
         viewers: Mutex::new(0),
+        input_locked: AtomicBool::new(false),
     });
 
     let web_dir = web_dir()?;
     let app = kvm_core::api::router(state, web_dir);
 
-    let addr: SocketAddr = config
-        .listen
+    let addr: SocketAddr = listen
         .parse()
-        .with_context(|| format!("parse listen {}", config.listen))?;
+        .with_context(|| format!("parse listen {listen}"))?;
     info!(%addr, "kvm-core listening");
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;

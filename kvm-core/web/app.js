@@ -13,6 +13,7 @@
   const video = document.getElementById('video');
   const ctx = canvas.getContext('2d');
   const statusEl = document.getElementById('status');
+  const warnEl = document.getElementById('warn');
   let inputWs = null;
   let lastX = null;
   let lastY = null;
@@ -28,6 +29,16 @@
     return useVideoEl ? video : canvas;
   }
 
+  function setWarn(text) {
+    if (!text) {
+      warnEl.classList.remove('show');
+      warnEl.textContent = '';
+      return;
+    }
+    warnEl.textContent = text;
+    warnEl.classList.add('show');
+  }
+
   async function refreshStatus() {
     try {
       const res = await fetch('/api/status', { headers });
@@ -37,13 +48,22 @@
       }
       const s = await res.json();
       statusEl.textContent =
-        `视频 ${s.video.source}/${s.encoder.kind}${s.encoder.h264 ? '+rtp' : ''} · 串口 ${s.serial.mock ? 'mock' : (s.serial.port || '-')} · 观看 ${s.viewers}`;
+        `视频 ${s.video.source}/${s.encoder.kind}${s.encoder.h264 ? '+rtp' : ''} · 串口 ${s.serial.mock ? 'mock' : (s.serial.port || '-')} · 观看 ${s.viewers}` +
+        (s.input_locked ? ' · 输入锁定' : '');
+      if (!s.video.ok) {
+        setWarn(s.video.error ? `采集异常: ${s.video.error}` : '采集无帧，正在重试…');
+      } else if (s.input_locked) {
+        setWarn('输入已锁定（Agent/管理员）');
+      } else {
+        setWarn('');
+      }
       const hasAtx = !!s.atx;
       document.getElementById('btnAtxShort').hidden = !hasAtx;
       document.getElementById('btnAtxLong').hidden = !hasAtx;
       document.getElementById('btnAtxReset').hidden = !(s.atx && s.atx.reset_channel != null);
     } catch (_) {
       statusEl.textContent = '状态获取失败';
+      setWarn('无法连接 kvm-core');
     }
   }
 
@@ -133,10 +153,14 @@
       const answer = await res.json();
       await pc.setRemoteDescription({ type: answer.type || 'answer', sdp: answer.sdp });
       setTimeout(() => {
-        if (!gotTrack && canvas.width < 2) startWsVideo();
+        if (!gotTrack && canvas.width < 2) {
+          setWarn('WebRTC 无视频轨，已回退 WS');
+          startWsVideo();
+        }
       }, 4000);
     } catch (e) {
       console.warn('WebRTC failed, using WS video', e);
+      setWarn('WebRTC 失败，已回退到 WS 画面');
       startWsVideo();
     }
   }
@@ -208,21 +232,31 @@
   });
   window.addEventListener('blur', () => sendInput({ type: 'release' }));
 
-  document.getElementById('btnCad').onclick = async () => {
-    for (const code of ['ControlLeft', 'AltLeft', 'Delete']) {
+  async function tapCombo(codes) {
+    for (const code of codes) {
       await fetch('/api/input/key', {
         method: 'POST',
         headers,
         body: JSON.stringify({ action: 'down', code }),
       });
     }
-    for (const code of ['Delete', 'AltLeft', 'ControlLeft']) {
+    for (const code of [...codes].reverse()) {
       await fetch('/api/input/key', {
         method: 'POST',
         headers,
         body: JSON.stringify({ action: 'up', code }),
       });
     }
+  }
+
+  document.getElementById('btnCad').onclick = () =>
+    tapCombo(['ControlLeft', 'AltLeft', 'Delete']);
+  document.getElementById('btnWinL').onclick = () => tapCombo(['MetaLeft', 'KeyL']);
+  document.getElementById('btnAltTab').onclick = () => tapCombo(['AltLeft', 'Tab']);
+  document.getElementById('btnFs').onclick = () => {
+    const wrap = document.querySelector('.screen-wrap');
+    if (!document.fullscreenElement) wrap.requestFullscreen?.();
+    else document.exitFullscreen?.();
   };
 
   async function atx(kind) {

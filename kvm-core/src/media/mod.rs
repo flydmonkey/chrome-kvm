@@ -1,5 +1,6 @@
 pub mod capture;
 pub mod encode;
+pub mod ffmpeg_encode;
 pub mod frame;
 pub mod pipeline;
 pub mod source;

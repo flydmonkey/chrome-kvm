@@ -1,6 +1,8 @@
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 
 use crate::auth::Auth;
 use crate::config::Config;
@@ -15,12 +17,24 @@ pub struct AtxRuntime {
 }
 
 pub struct AppState {
-    pub config: Config,
+    pub config: RwLock<Config>,
+    pub config_path: PathBuf,
     pub auth: Auth,
     pub media: Arc<MediaPipeline>,
     pub hid: Arc<HidService>,
     pub mock_hid: Option<Arc<MockHid>>,
     pub atx: Option<AtxRuntime>,
-    /// Shared latest JPEG for WS/WebRTC fan-out.
     pub viewers: Mutex<u32>,
+    /// When true, human WS/REST input is ignored (reserved for AI takeover).
+    pub input_locked: AtomicBool,
+}
+
+impl AppState {
+    pub fn input_locked(&self) -> bool {
+        self.input_locked.load(Ordering::Relaxed)
+    }
+
+    pub fn set_input_locked(&self, locked: bool) {
+        self.input_locked.store(locked, Ordering::Relaxed);
+    }
 }

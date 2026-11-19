@@ -10,6 +10,7 @@
   "width": 1280,
   "height": 720,
   "fps": 30,
+  "bitrate_kbps": 4000,
   "atx": {
     "port": "mock",
     "channel": 1,

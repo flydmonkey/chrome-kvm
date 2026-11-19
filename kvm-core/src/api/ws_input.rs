@@ -66,6 +66,9 @@ async fn handle(socket: WebSocket, state: Arc<AppState>) {
             debug!(%text, "bad input ws message");
             continue;
         };
+        if state.input_locked() && !matches!(ev, InputMsg::Release) {
+            continue;
+        }
         let res = match ev {
             InputMsg::KeyDown { code } => state.hid.keydown(&code),
             InputMsg::KeyUp { code } => state.hid.keyup(&code),

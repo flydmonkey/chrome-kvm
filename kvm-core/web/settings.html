@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>kvm-core 设置</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="login-body">
+  <form id="form" class="login-card settings-card">
+    <h1>设置</h1>
+    <p class="muted">改视频/串口/分辨率后需重启 kvm-core 进程</p>
+    <label>视频源
+      <select id="video_source"></select>
+    </label>
+    <label>自定义视频源 <input id="video_custom" placeholder="/dev/video0 或 USB Video" /></label>
+    <label>串口
+      <select id="serial_port"></select>
+    </label>
+    <label>自定义串口 <input id="serial_custom" placeholder="COM3 或 /dev/ttyUSB0" /></label>
+    <label>波特率 <input id="baud" type="number" /></label>
+    <label>宽度 <input id="width" type="number" /></label>
+    <label>高度 <input id="height" type="number" /></label>
+    <label>帧率 <input id="fps" type="number" /></label>
+    <label>码率 kbps <input id="bitrate_kbps" type="number" /></label>
+    <label class="row"><input id="mouse_absolute" type="checkbox" /> 绝对鼠标</label>
+    <label class="row"><input id="prefer_gpu_encode" type="checkbox" /> 优先 GPU 编码</label>
+    <label>新口令（留空不改） <input id="password" type="password" autocomplete="new-password" /></label>
+    <p id="msg" class="muted"></p>
+    <div class="row-actions">
+      <button type="submit">保存</button>
+      <a class="btn-link" href="/index.html">返回控制页</a>
+    </div>
+  </form>
+  <script src="/settings.js"></script>
+</body>
+</html>

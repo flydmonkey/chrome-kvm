@@ -11,14 +11,19 @@
     <strong>kvm-core</strong>
     <span id="status" class="muted">连接中…</span>
     <div class="spacer"></div>
+    <button type="button" id="btnFs" title="全屏">全屏</button>
     <button type="button" id="btnCad" title="Ctrl+Alt+Delete">Ctrl+Alt+Del</button>
+    <button type="button" id="btnWinL" title="Win+L">Win+L</button>
+    <button type="button" id="btnAltTab" title="Alt+Tab">Alt+Tab</button>
     <button type="button" id="btnAtxShort" hidden>电源短按</button>
     <button type="button" id="btnAtxLong" hidden>电源长按</button>
     <button type="button" id="btnAtxReset" hidden>复位</button>
+    <a class="btn-link" href="/settings.html">设置</a>
     <button type="button" id="btnLogout">退出</button>
   </header>
   <main class="stage">
     <div class="screen-wrap">
+      <div id="warn" class="warn-banner"></div>
       <video id="video" autoplay playsinline muted hidden></video>
       <canvas id="screen" tabindex="0"></canvas>
     </div>

@@ -47,6 +47,13 @@ pub struct Config {
     pub height: u32,
     #[serde(default = "default_fps")]
     pub fps: u32,
+    /// Target video bitrate hint (kbps) for ffmpeg encoders.
+    #[serde(default = "default_bitrate")]
+    pub bitrate_kbps: u32,
+}
+
+fn default_bitrate() -> u32 {
+    4000
 }
 
 fn default_listen() -> String {
@@ -90,6 +97,7 @@ impl Default for Config {
             width: default_width(),
             height: default_height(),
             fps: default_fps(),
+            bitrate_kbps: default_bitrate(),
         }
     }
 }
@@ -111,10 +119,34 @@ impl Config {
             Ok((Self::load(&path)?, path))
         } else {
             let cfg = Config::default();
-            let text = serde_json::to_string_pretty(&cfg)?;
-            std::fs::write(&path, text)
-                .with_context(|| format!("write default config {}", path.display()))?;
+            cfg.save(&path)?;
             Ok((cfg, path))
         }
+    }
+
+    pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
+        let path = path.as_ref();
+        let text = serde_json::to_string_pretty(self)?;
+        std::fs::write(path, text).with_context(|| format!("write config {}", path.display()))?;
+        Ok(())
+    }
+
+    /// Public settings view (no password secrets).
+    pub fn public_view(&self) -> serde_json::Value {
+        serde_json::json!({
+            "listen": self.listen,
+            "username": self.username,
+            "video_source": self.video_source,
+            "serial_port": self.serial_port,
+            "baud": self.baud,
+            "mouse_absolute": self.mouse_absolute,
+            "prefer_gpu_encode": self.prefer_gpu_encode,
+            "width": self.width,
+            "height": self.height,
+            "fps": self.fps,
+            "bitrate_kbps": self.bitrate_kbps,
+            "atx": self.atx,
+            "has_password": self.password.is_some() || self.password_hash.is_some(),
+        })
     }
 }

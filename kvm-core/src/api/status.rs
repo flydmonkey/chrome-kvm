@@ -14,6 +14,7 @@ pub async fn status(
     require_auth(&state, &headers)?;
     let enc = state.media.encoder_status();
     let (video_ok, video_err, frames_ok, frames_err) = state.media.capture_health();
+    let cfg = state.config.read();
     Ok(Json(serde_json::json!({
         "video": {
             "source": state.media.source_label(),
@@ -23,10 +24,10 @@ pub async fn status(
             "frames_err": frames_err,
         },
         "serial": {
-            "port": state.config.serial_port,
+            "port": cfg.serial_port,
             "mock": state.mock_hid.is_some(),
             "absolute_mouse": state.hid.absolute(),
-            "ok": state.mock_hid.is_some() || state.config.serial_port.is_some(),
+            "ok": state.mock_hid.is_some() || cfg.serial_port.is_some(),
         },
         "encoder": {
             "kind": enc.kind,
@@ -40,6 +41,7 @@ pub async fn status(
             "reset_channel": a.reset_channel,
         })),
         "viewers": *state.viewers.lock(),
+        "input_locked": state.input_locked(),
         "ai_panel": "hidden",
     })))
 }

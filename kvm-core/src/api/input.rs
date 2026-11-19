@@ -35,12 +35,26 @@ pub struct MouseReq {
     pub wheel: i8,
 }
 
+fn reject_if_locked(
+    state: &AppState,
+) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
+    if state.input_locked() {
+        Err((
+            StatusCode::LOCKED,
+            Json(serde_json::json!({"error": "input locked"})),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 pub async fn key(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     headers: HeaderMap,
     Json(body): Json<KeyReq>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     require_auth(&state, &headers)?;
+    reject_if_locked(&state)?;
     let result = match body.action.as_str() {
         "down" => state.hid.keydown(&body.code),
         "up" => state.hid.keyup(&body.code),
@@ -55,6 +69,7 @@ pub async fn mouse(
     Json(body): Json<MouseReq>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     require_auth(&state, &headers)?;
+    reject_if_locked(&state)?;
     let result = match body.action.as_str() {
         "move_abs" => state
             .hid
@@ -75,6 +90,7 @@ pub async fn release_all(
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     require_auth(&state, &headers)?;
+    // release always allowed (safety)
     map_hid(state.hid.force_release_all())
 }
 
