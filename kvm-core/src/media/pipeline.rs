@@ -17,6 +17,9 @@ pub struct MediaPipeline {
     fps: u32,
     width: u32,
     height: u32,
+    last_error: RwLock<Option<String>>,
+    frames_ok: std::sync::atomic::AtomicU64,
+    frames_err: std::sync::atomic::AtomicU64,
 }
 
 impl MediaPipeline {
@@ -37,7 +40,17 @@ impl MediaPipeline {
             fps: fps.max(1),
             width,
             height,
+            last_error: RwLock::new(None),
+            frames_ok: std::sync::atomic::AtomicU64::new(0),
+            frames_err: std::sync::atomic::AtomicU64::new(0),
         }
+    }
+
+    pub fn capture_health(&self) -> (bool, Option<String>, u64, u64) {
+        let err = self.last_error.read().clone();
+        let ok = self.frames_ok.load(std::sync::atomic::Ordering::Relaxed);
+        let bad = self.frames_err.load(std::sync::atomic::Ordering::Relaxed);
+        (self.latest_frame().is_some() && err.is_none(), err, ok, bad)
     }
 
     pub fn encoder_status(&self) -> &EncoderStatus {
@@ -98,8 +111,16 @@ impl MediaPipeline {
                 match pipe.source.next_frame() {
                     Ok(frame) => {
                         *pipe.latest.write() = Some(frame);
+                        *pipe.last_error.write() = None;
+                        pipe.frames_ok
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
-                    Err(e) => warn!(error = %e, "frame capture failed"),
+                    Err(e) => {
+                        warn!(error = %e, "frame capture failed");
+                        *pipe.last_error.write() = Some(e.to_string());
+                        pipe.frames_err
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    }
                 }
             }
         });

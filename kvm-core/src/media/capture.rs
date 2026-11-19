@@ -118,6 +118,10 @@ impl Drop for FfmpegCaptureSource {
     }
 }
 
+pub fn ffmpeg_bin() -> Option<String> {
+    which_ffmpeg()
+}
+
 fn which_ffmpeg() -> Option<String> {
     if let Ok(p) = std::env::var("FFMPEG_PATH") {
         if std::path::Path::new(&p).exists() {

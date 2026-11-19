@@ -13,15 +13,20 @@ pub async fn status(
 ) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
     require_auth(&state, &headers)?;
     let enc = state.media.encoder_status();
+    let (video_ok, video_err, frames_ok, frames_err) = state.media.capture_health();
     Ok(Json(serde_json::json!({
         "video": {
             "source": state.media.source_label(),
-            "ok": state.media.latest_frame().is_some(),
+            "ok": video_ok,
+            "error": video_err,
+            "frames_ok": frames_ok,
+            "frames_err": frames_err,
         },
         "serial": {
             "port": state.config.serial_port,
             "mock": state.mock_hid.is_some(),
             "absolute_mouse": state.hid.absolute(),
+            "ok": state.mock_hid.is_some() || state.config.serial_port.is_some(),
         },
         "encoder": {
             "kind": enc.kind,

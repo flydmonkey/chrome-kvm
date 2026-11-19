@@ -40,17 +40,40 @@ pub fn resolve_encoder(prefer_gpu: bool) -> EncoderStatus {
 }
 
 fn detect_gpu_encoder() -> bool {
-    // Real NVENC/QSV/AMF wiring is platform-specific; detect presence only for status.
     #[cfg(windows)]
     {
-        std::path::Path::new("C:\\Windows\\System32\\nvEncodeAPI64.dll").exists()
+        if std::path::Path::new("C:\\Windows\\System32\\nvEncodeAPI64.dll").exists()
             || std::path::Path::new("C:\\Windows\\System32\\nvEncodeAPI.dll").exists()
+        {
+            return true;
+        }
     }
     #[cfg(not(windows))]
     {
-        // Best-effort: nvidia device node.
-        std::path::Path::new("/dev/nvidia0").exists()
+        if std::path::Path::new("/dev/nvidia0").exists() {
+            return true;
+        }
     }
+    // ffmpeg advertises NVENC/QSV/AMF
+    ffmpeg_has_hw_encoder()
+}
+
+fn ffmpeg_has_hw_encoder() -> bool {
+    let ffmpeg = crate::media::capture::ffmpeg_bin();
+    let Some(bin) = ffmpeg else {
+        return false;
+    };
+    let Ok(out) = std::process::Command::new(bin)
+        .args(["-hide_banner", "-encoders"])
+        .output()
+    else {
+        return false;
+    };
+    let text = String::from_utf8_lossy(&out.stdout);
+    text.contains("h264_nvenc")
+        || text.contains("h264_qsv")
+        || text.contains("h264_amf")
+        || text.contains("h264_mf")
 }
 
 /// Soft H264 encoder producing Annex-B access units for WebRTC.

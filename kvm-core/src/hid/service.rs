@@ -256,9 +256,9 @@ pub fn open_hid(
             info!("HID backend: mock");
             return Ok((svc, Some(mock)));
         }
-        match SerialHid::open(path, baud) {
+        match crate::hid::ReconnectingSerial::open(path, baud) {
             Ok(serial) => {
-                info!(%path, baud, "HID backend: serial");
+                info!(%path, baud, "HID backend: serial (reconnect)");
                 Ok((
                     Arc::new(HidService::new(Arc::new(serial), absolute)),
                     None,
