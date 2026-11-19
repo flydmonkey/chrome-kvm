@@ -1,5 +1,4 @@
-//! WebRTC signaling with JPEG frames on DataChannel `video`.
-//! Prefer GPU/RTP H264 later via the same endpoint; status reports encoder preference.
+//! WebRTC: H264 RTP video track when encoder is available; JPEG DataChannel fallback.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,14 +8,18 @@ use axum::Json;
 use serde::Deserialize;
 use tracing::{info, warn};
 use webrtc::api::interceptor_registry::register_default_interceptors;
-use webrtc::api::media_engine::MediaEngine;
+use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264};
 use webrtc::api::APIBuilder;
 use webrtc::data_channel::data_channel_init::RTCDataChannelInit;
 use webrtc::data_channel::data_channel_state::RTCDataChannelState;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::interceptor::registry::Registry;
+use webrtc::media::Sample;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
+use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
+use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
+use webrtc::track::track_local::TrackLocal;
 
 use crate::state::AppState;
 
@@ -31,6 +34,7 @@ pub struct OfferReq {
 pub struct AnswerResp {
     pub sdp: String,
     pub r#type: String,
+    pub mode: String,
 }
 
 pub async fn offer(
@@ -58,27 +62,69 @@ pub async fn offer(
     };
 
     let pc = Arc::new(api.new_peer_connection(config).await.map_err(internal)?);
-
-    let dc = pc
-        .create_data_channel(
-            "video",
-            Some(RTCDataChannelInit {
-                ordered: Some(true),
-                ..Default::default()
-            }),
-        )
-        .await
-        .map_err(internal)?;
-
     let media = Arc::clone(&state.media);
-    let fps = state.config.fps.max(1);
-    info!(
-        encoder = %state.media.encoder_status().kind,
-        "WebRTC DataChannel video (JPEG); GPU RTP path reserved"
-    );
+    let fps = state.media.fps();
+    let use_h264 = state.media.has_h264();
 
-    {
-        let dc = Arc::clone(&dc);
+    let mode = if use_h264 {
+        let video_track = Arc::new(TrackLocalStaticSample::new(
+            RTCRtpCodecCapability {
+                mime_type: MIME_TYPE_H264.to_owned(),
+                ..Default::default()
+            },
+            "video".to_owned(),
+            "kvm".to_owned(),
+        ));
+        pc.add_track(Arc::clone(&video_track) as Arc<dyn TrackLocal + Send + Sync>)
+            .await
+            .map_err(internal)?;
+
+        info!(
+            encoder = %state.media.encoder_status().kind,
+            "WebRTC H264 RTP track"
+        );
+
+        let pc_watch = Arc::clone(&pc);
+        tokio::spawn(async move {
+            let interval = Duration::from_millis(1000 / u64::from(fps.max(1)));
+            let mut ticker = tokio::time::interval(interval);
+            // Give peer a moment to finish answer/ICE
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            loop {
+                ticker.tick().await;
+                match media.grab_h264() {
+                    Ok(au) => {
+                        if video_track
+                            .write_sample(&Sample {
+                                data: bytes::Bytes::from(au),
+                                duration: interval,
+                                ..Default::default()
+                            })
+                            .await
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
+                    Err(e) => warn!(error = %e, "h264 encode failed"),
+                }
+            }
+            let _ = pc_watch.close().await;
+        });
+        "h264-rtp"
+    } else {
+        let dc = pc
+            .create_data_channel(
+                "video",
+                Some(RTCDataChannelInit {
+                    ordered: Some(true),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .map_err(internal)?;
+
+        info!("WebRTC DataChannel JPEG fallback");
         let pc_watch = Arc::clone(&pc);
         tokio::spawn(async move {
             for _ in 0..100 {
@@ -87,7 +133,7 @@ pub async fn offer(
                 }
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
-            let interval = Duration::from_millis(1000 / u64::from(fps));
+            let interval = Duration::from_millis(1000 / u64::from(fps.max(1)));
             let mut ticker = tokio::time::interval(interval);
             loop {
                 ticker.tick().await;
@@ -100,12 +146,13 @@ pub async fn offer(
                             break;
                         }
                     }
-                    Err(e) => warn!(error = %e, "webrtc frame grab failed"),
+                    Err(e) => warn!(error = %e, "jpeg grab failed"),
                 }
             }
             let _ = pc_watch.close().await;
         });
-    }
+        "jpeg-dc"
+    };
 
     let offer = RTCSessionDescription::offer(body.sdp).map_err(internal)?;
     pc.set_remote_description(offer).await.map_err(internal)?;
@@ -121,12 +168,12 @@ pub async fn offer(
         )
     })?;
 
-    // Keep PC alive until datachannel task closes it
     std::mem::forget(Arc::clone(&pc));
 
     Ok(Json(AnswerResp {
         sdp: local.sdp,
         r#type: local.sdp_type.to_string(),
+        mode: mode.into(),
     }))
 }
 

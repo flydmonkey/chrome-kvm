@@ -27,6 +27,7 @@ pub async fn status(
             "kind": enc.kind,
             "gpu_available": enc.gpu_available,
             "message": enc.message,
+            "h264": state.media.has_h264(),
         },
         "atx": state.atx.as_ref().map(|a| serde_json::json!({
             "port": a.port,

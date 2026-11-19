@@ -18,7 +18,10 @@
     <button type="button" id="btnLogout">退出</button>
   </header>
   <main class="stage">
-    <canvas id="screen" tabindex="0"></canvas>
+    <div class="screen-wrap">
+      <video id="video" autoplay playsinline muted hidden></video>
+      <canvas id="screen" tabindex="0"></canvas>
+    </div>
     <aside id="aiPanel" class="ai-panel" hidden aria-hidden="true">
       <h2>AI（二期）</h2>
       <p class="muted">自然语言控制将在二期启用</p>

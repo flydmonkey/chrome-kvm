@@ -10,17 +10,22 @@
     'Content-Type': 'application/json',
   };
   const canvas = document.getElementById('screen');
+  const video = document.getElementById('video');
   const ctx = canvas.getContext('2d');
   const statusEl = document.getElementById('status');
   let inputWs = null;
   let lastX = null;
   let lastY = null;
-  let absoluteMouse = true;
+  let useVideoEl = false;
 
   function authUrl(path) {
     const u = new URL(path, location.origin);
     u.searchParams.set('token', token);
     return u;
+  }
+
+  function hitTarget() {
+    return useVideoEl ? video : canvas;
   }
 
   async function refreshStatus() {
@@ -31,9 +36,8 @@
         return;
       }
       const s = await res.json();
-      absoluteMouse = !!s.serial.absolute_mouse;
       statusEl.textContent =
-        `视频 ${s.video.source}/${s.encoder.kind} · 串口 ${s.serial.mock ? 'mock' : (s.serial.port || '-')} · 观看 ${s.viewers}`;
+        `视频 ${s.video.source}/${s.encoder.kind}${s.encoder.h264 ? '+rtp' : ''} · 串口 ${s.serial.mock ? 'mock' : (s.serial.port || '-')} · 观看 ${s.viewers}`;
       const hasAtx = !!s.atx;
       document.getElementById('btnAtxShort').hidden = !hasAtx;
       document.getElementById('btnAtxLong').hidden = !hasAtx;
@@ -72,7 +76,22 @@
     img.src = url;
   }
 
+  function showCanvasMode() {
+    useVideoEl = false;
+    video.hidden = true;
+    video.srcObject = null;
+    canvas.classList.remove('behind');
+  }
+
+  function showVideoMode(stream) {
+    useVideoEl = true;
+    video.hidden = false;
+    video.srcObject = stream;
+    canvas.classList.add('behind');
+  }
+
   function startWsVideo() {
+    showCanvasMode();
     const ws = new WebSocket(authUrl('/api/ws/video'));
     ws.binaryType = 'arraybuffer';
     ws.onmessage = (m) => {
@@ -87,8 +106,21 @@
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
       });
-      // Negotiate so server-created channel can attach via ondatachannel
       pc.addTransceiver('video', { direction: 'recvonly' });
+      let gotTrack = false;
+      pc.ontrack = (ev) => {
+        gotTrack = true;
+        const stream = ev.streams[0] || new MediaStream([ev.track]);
+        showVideoMode(stream);
+        statusEl.title = 'WebRTC H264 RTP';
+      };
+      pc.ondatachannel = (ev) => {
+        if (ev.channel.label !== 'video') return;
+        showCanvasMode();
+        ev.channel.binaryType = 'arraybuffer';
+        ev.channel.onmessage = (m) => drawJpeg(m.data);
+        statusEl.title = 'WebRTC DataChannel JPEG';
+      };
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       await iceComplete(pc);
@@ -100,16 +132,9 @@
       if (!res.ok) throw new Error('webrtc offer failed');
       const answer = await res.json();
       await pc.setRemoteDescription({ type: answer.type || 'answer', sdp: answer.sdp });
-      pc.ondatachannel = (ev) => {
-        if (ev.channel.label !== 'video') return;
-        ev.channel.binaryType = 'arraybuffer';
-        ev.channel.onmessage = (m) => drawJpeg(m.data);
-        statusEl.title = 'WebRTC DataChannel';
-      };
-      // Also keep WS as backup if no frames in 3s
       setTimeout(() => {
-        if (canvas.width < 2) startWsVideo();
-      }, 3000);
+        if (!gotTrack && canvas.width < 2) startWsVideo();
+      }, 4000);
     } catch (e) {
       console.warn('WebRTC failed, using WS video', e);
       startWsVideo();
@@ -128,49 +153,56 @@
   }
 
   function contentSize() {
-    return { content_w: canvas.clientWidth || 1, content_h: canvas.clientHeight || 1 };
+    const el = hitTarget();
+    return { content_w: el.clientWidth || 1, content_h: el.clientHeight || 1 };
   }
 
   function localPos(ev) {
-    const r = canvas.getBoundingClientRect();
+    const el = hitTarget();
+    const r = el.getBoundingClientRect();
     return { x: ev.clientX - r.left, y: ev.clientY - r.top };
   }
 
-  canvas.addEventListener('mousemove', (ev) => {
-    const p = localPos(ev);
-    const c = contentSize();
-    const dx = lastX == null ? 0 : Math.round(p.x - lastX);
-    const dy = lastY == null ? 0 : Math.round(p.y - lastY);
-    lastX = p.x;
-    lastY = p.y;
-    sendInput({ type: 'mousemove', ...p, ...c, dx, dy });
-  });
-  canvas.addEventListener('mousedown', (ev) => {
-    canvas.focus();
-    const button = ev.button === 2 ? 2 : ev.button === 1 ? 4 : 1;
-    sendInput({ type: 'mousedown', button });
-  });
-  canvas.addEventListener('mouseup', (ev) => {
-    const button = ev.button === 2 ? 2 : ev.button === 1 ? 4 : 1;
-    sendInput({ type: 'mouseup', button });
-  });
-  canvas.addEventListener(
-    'wheel',
-    (ev) => {
-      ev.preventDefault();
-      sendInput({ type: 'wheel', wheel: ev.deltaY > 0 ? -1 : 1 });
-    },
-    { passive: false }
-  );
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  function bindPointer(el) {
+    el.addEventListener('mousemove', (ev) => {
+      const p = localPos(ev);
+      const c = contentSize();
+      const dx = lastX == null ? 0 : Math.round(p.x - lastX);
+      const dy = lastY == null ? 0 : Math.round(p.y - lastY);
+      lastX = p.x;
+      lastY = p.y;
+      sendInput({ type: 'mousemove', ...p, ...c, dx, dy });
+    });
+    el.addEventListener('mousedown', (ev) => {
+      canvas.focus();
+      const button = ev.button === 2 ? 2 : ev.button === 1 ? 4 : 1;
+      sendInput({ type: 'mousedown', button });
+    });
+    el.addEventListener('mouseup', (ev) => {
+      const button = ev.button === 2 ? 2 : ev.button === 1 ? 4 : 1;
+      sendInput({ type: 'mouseup', button });
+    });
+    el.addEventListener(
+      'wheel',
+      (ev) => {
+        ev.preventDefault();
+        sendInput({ type: 'wheel', wheel: ev.deltaY > 0 ? -1 : 1 });
+      },
+      { passive: false }
+    );
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  bindPointer(canvas);
+  bindPointer(video);
 
   window.addEventListener('keydown', (ev) => {
-    if (document.activeElement !== canvas) return;
+    if (document.activeElement !== canvas && document.activeElement !== video) return;
     ev.preventDefault();
     sendInput({ type: 'keydown', code: ev.code });
   });
   window.addEventListener('keyup', (ev) => {
-    if (document.activeElement !== canvas) return;
+    if (document.activeElement !== canvas && document.activeElement !== video) return;
     ev.preventDefault();
     sendInput({ type: 'keyup', code: ev.code });
   });
@@ -209,7 +241,6 @@
     location.href = '/login.html';
   };
 
-  void absoluteMouse;
   connectInput();
   startVideo();
   refreshStatus();

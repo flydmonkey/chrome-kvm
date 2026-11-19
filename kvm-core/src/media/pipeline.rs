@@ -5,7 +5,7 @@ use anyhow::Result;
 use parking_lot::RwLock;
 use tracing::warn;
 
-use super::encode::{resolve_encoder, EncoderStatus};
+use super::encode::{resolve_encoder, EncoderStatus, H264Encoder};
 use super::frame::RawFrame;
 use super::source::FrameSource;
 
@@ -13,16 +13,30 @@ pub struct MediaPipeline {
     source: Arc<dyn FrameSource>,
     latest: RwLock<Option<RawFrame>>,
     encoder: EncoderStatus,
+    h264: RwLock<Option<H264Encoder>>,
     fps: u32,
+    width: u32,
+    height: u32,
 }
 
 impl MediaPipeline {
-    pub fn new(source: Arc<dyn FrameSource>, prefer_gpu: bool, fps: u32) -> Self {
+    pub fn new(source: Arc<dyn FrameSource>, prefer_gpu: bool, fps: u32, width: u32, height: u32) -> Self {
+        let encoder = resolve_encoder(prefer_gpu);
+        let h264 = match H264Encoder::new(width, height) {
+            Ok(e) => Some(e),
+            Err(e) => {
+                warn!(error = %e, "H264 encoder init failed; JPEG-only until fixed");
+                None
+            }
+        };
         Self {
             source,
             latest: RwLock::new(None),
-            encoder: resolve_encoder(prefer_gpu),
+            encoder,
+            h264: RwLock::new(h264),
             fps: fps.max(1),
+            width,
+            height,
         }
     }
 
@@ -32,6 +46,14 @@ impl MediaPipeline {
 
     pub fn source_label(&self) -> &str {
         self.source.label()
+    }
+
+    pub fn fps(&self) -> u32 {
+        self.fps
+    }
+
+    pub fn dimensions(&self) -> (u32, u32) {
+        (self.width, self.height)
     }
 
     pub fn latest_frame(&self) -> Option<RawFrame> {
@@ -46,6 +68,24 @@ impl MediaPipeline {
             .or_else(|| self.source.next_frame().ok())
             .ok_or_else(|| anyhow::anyhow!("no frame"))?;
         frame.to_jpeg(80)
+    }
+
+    pub fn grab_h264(&self) -> Result<Vec<u8>> {
+        let frame = self
+            .latest
+            .read()
+            .clone()
+            .or_else(|| self.source.next_frame().ok())
+            .ok_or_else(|| anyhow::anyhow!("no frame"))?;
+        let guard = self.h264.read();
+        let enc = guard
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("h264 encoder unavailable"))?;
+        enc.encode_frame(&frame)
+    }
+
+    pub fn has_h264(&self) -> bool {
+        self.h264.read().is_some()
     }
 
     pub fn spawn_capture_loop(self: &Arc<Self>) {

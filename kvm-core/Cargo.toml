@@ -29,6 +29,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4"] }
 webrtc = "0.12"
+openh264 = { version = "0.6", features = ["source"] }
 
 [dev-dependencies]
 http-body-util = "0.1"

@@ -1,6 +1,6 @@
 # kvm-core（一期）
 
-Windows / 跨平台旁路机上的 LAN IP-KVM 核心：登录控制页、画面推送（WebRTC DataChannel JPEG + WS 回退）、CH9329 键鼠、可选 ATX。AI Agent 为二期。
+旁路机上的 LAN IP-KVM 核心：登录控制页、WebRTC 画面（优先 H264 RTP，失败回退 JPEG DataChannel/WS）、CH9329 键鼠、可选 ATX。AI Agent 为二期。
 
 ## 快速开始
 
@@ -10,29 +10,28 @@ cp config.example.json kvm-core.config.json
 cargo run --release
 ```
 
-浏览器打开 `http://<旁路机>:8080/login.html`（默认 `admin` / `admin`）。
+浏览器打开 `http://<旁路机>:8080/`（默认 `admin` / `admin`）。
 
 ## 配置
 
-见 `config.example.json`：
-
 | 字段 | 说明 |
 |------|------|
-| `serial_port` | CH9329 串口；`mock` 仅本地开发 |
-| `video_source` | 一期用 `test-pattern`；真实采集卡（Windows MF）待接 |
-| `prefer_gpu_encode` | 优先 GPU；当前无可用硬编时自动软件路径并在状态栏标明 |
+| `video_source` | `test-pattern`；或 `/dev/video0`（Linux+ffmpeg）；或 Windows 采集卡名称（dshow+ffmpeg） |
+| `serial_port` | CH9329 串口；`mock` 仅开发 |
+| `prefer_gpu_encode` | 优先 GPU；检测到 NVENC 库/`/dev/nvidia0` 时状态标 gpu，编码一期仍走 OpenH264 软件轨（硬编接线点已留） |
 | `atx` | 可选 LCUS 继电器 |
+
+真实采集依赖本机 **ffmpeg**（`v4l2` / `dshow`）。未安装或设备打不开时自动回退 `test-pattern`。
 
 ## API（需登录）
 
-- `POST /api/login` `{username,password}` → `{token}`
-- `GET /api/status`
-- `GET /api/frame.jpg`（二期 Agent 截帧）
-- `POST /api/input/key` / `mouse` / `release`
-- `WS /api/ws/input?token=`
-- `WS /api/ws/video?token=`
-- `POST /api/webrtc/offer` `{sdp}`
-- `POST /api/atx/press` `{kind: short\|long\|reset}`
+- `POST /api/login` → `{token}`
+- `GET /api/status` / `GET /api/devices`
+- `GET /api/frame.jpg`
+- `POST /api/input/key|mouse|release`
+- `WS /api/ws/input?token=` / `WS /api/ws/video?token=`
+- `POST /api/webrtc/offer` `{sdp}` → `{sdp,type,mode}`（`h264-rtp` 或 `jpeg-dc`）
+- `POST /api/atx/press` `{kind}`
 
 ## 测试
 
@@ -40,11 +39,13 @@ cargo run --release
 cargo test
 ```
 
-协议单测与现有 `test/ch9329.test.js` 样例对齐。
+## Windows 旁路机
 
-## 硬件（生产）
+1. 安装 [ffmpeg](https://ffmpeg.org/) 并加入 PATH  
+2. `video_source` 设为采集卡在 dshow 中的名称（可用 `ffmpeg -list_devices true -f dshow -i dummy` 查看）  
+3. `serial_port` 设为 `COMx`  
+4. 放行 `listen` 端口的防火墙入站规则  
 
-1. 旁路机（建议 Windows x86 + GPU）接 USB 采集卡与 CH9329  
-2. 配置真实 `serial_port`（如 `COM3`）  
-3. 内网防火墙放行 `listen` 端口  
-4. 采集卡接入后替换 `video_source`（Windows 采集模块为 stub，需后续接线）
+## 硬件
+
+USB 采集卡 + CH9329（+ 可选继电器）接到旁路机；被控机 HDMI → 采集卡，CH9329 → 被控机 USB。

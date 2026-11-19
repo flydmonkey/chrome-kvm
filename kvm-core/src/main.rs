@@ -6,7 +6,7 @@ use anyhow::Context;
 use kvm_core::auth::Auth;
 use kvm_core::config::Config;
 use kvm_core::hid::open_hid;
-use kvm_core::media::{MediaPipeline, TestPatternSource};
+use kvm_core::media::{open_source, MediaPipeline};
 use kvm_core::state::{AppState, AtxRuntime};
 use parking_lot::Mutex;
 use tracing::info;
@@ -40,19 +40,19 @@ async fn main() -> anyhow::Result<()> {
     info!(path = %used_path.display(), "loaded config");
 
     let auth = Auth::from_config(&config)?;
-    let source: Arc<dyn kvm_core::media::FrameSource> =
-        Arc::new(TestPatternSource::new(config.width, config.height));
-    if config.video_source != "test-pattern" {
-        tracing::warn!(
-            source = %config.video_source,
-            "non-test-pattern sources not implemented yet; using test-pattern"
-        );
-    }
+    let source = open_source(
+        &config.video_source,
+        config.width,
+        config.height,
+        config.fps,
+    )?;
 
     let media = Arc::new(MediaPipeline::new(
         source,
         config.prefer_gpu_encode,
         config.fps,
+        config.width,
+        config.height,
     ));
     media.spawn_capture_loop();
 

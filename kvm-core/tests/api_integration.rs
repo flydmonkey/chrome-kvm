@@ -23,7 +23,7 @@ fn test_app() -> (axum::Router, Arc<MockHid>, Arc<MediaPipeline>) {
     });
     let auth = Auth::from_config(&config).unwrap();
     let source = Arc::new(TestPatternSource::new(64, 48));
-    let media = Arc::new(MediaPipeline::new(source, false, 5));
+    let media = Arc::new(MediaPipeline::new(source, false, 5, 64, 48));
     let mock = Arc::new(MockHid::new());
     let hid = Arc::new(HidService::new(mock.clone(), true));
     let state = Arc::new(AppState {

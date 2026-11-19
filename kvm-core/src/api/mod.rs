@@ -1,6 +1,7 @@
 mod atx;
 mod auth_routes;
 mod auth_util;
+mod devices;
 mod frame;
 mod input;
 mod status;
@@ -23,6 +24,7 @@ pub fn router(state: Arc<AppState>, web_dir: std::path::PathBuf) -> Router {
         .route("/api/login", post(auth_routes::login))
         .route("/api/logout", post(auth_routes::logout))
         .route("/api/status", get(status::status))
+        .route("/api/devices", get(devices::devices))
         .route("/api/frame.jpg", get(frame::grab_frame))
         .route("/api/input/key", post(input::key))
         .route("/api/input/mouse", post(input::mouse))
