@@ -7,4 +7,6 @@ docs/*
 _site/
 kvm-core/target/
 kvm-core/kvm-core.config.json
+kvm-core/dist/
 .cargo-home/
+dist/
