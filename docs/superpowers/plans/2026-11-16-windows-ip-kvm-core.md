@@ -83,11 +83,11 @@ kvm-core/
 - `ch9329::map_to_absolute(view_w, view_h, content_w, content_h, x, y) -> (u16, u16)` mapping to 0..4095
 - `atx::command(channel, on) -> [u8;4]`
 
-- [ ] **Step 1:** Create `kvm-core` package with lib+bin skeleton
-- [ ] **Step 2:** Port frame checksum and packet builders; add tests matching `test/ch9329.test.js` hex samples (GET_INFO, key A, Shift+A, abs/rel mouse)
-- [ ] **Step 3:** Port ATX `A0 channel state sum` + duration constants; unit test
-- [ ] **Step 4:** `cargo test -p kvm-core --test ch9329_protocol --test atx_protocol`
-- [ ] **Step 5:** Commit
+- [x] **Step 1:** Create `kvm-core` package with lib+bin skeleton
+- [x] **Step 2:** Port frame checksum and packet builders; add tests matching `test/ch9329.test.js` hex samples (GET_INFO, key A, Shift+A, abs/rel mouse)
+- [x] **Step 3:** Port ATX `A0 channel state sum` + duration constants; unit test
+- [x] **Step 4:** `cargo test -p kvm-core --test ch9329_protocol --test atx_protocol`
+- [x] **Step 5:** Commit
 
 ---
 
